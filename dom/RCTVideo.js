@@ -1,6 +1,7 @@
 // @flow
 
 import { RCTEvent, RCTView, type RCTBridge } from "react-native-dom";
+import shaka from "shaka-player";
 
 import resizeModes from "./resizeModes";
 import type { VideoSource } from "./types";
@@ -25,6 +26,8 @@ class RCTVideo extends RCTView {
 
     this.eventDispatcher = bridge.getModuleByName("EventDispatcher");
 
+    shaka.polyfill.installAll();
+
     this.onEnd = this.onEnd.bind(this);
     this.onLoad = this.onLoad.bind(this);
     this.onLoadStart = this.onLoadStart.bind(this);
@@ -37,6 +40,7 @@ class RCTVideo extends RCTView {
     this.videoElement.addEventListener("loadstart", this.onLoadStart);
     this.videoElement.addEventListener("pause", this.onPause);
     this.videoElement.addEventListener("play", this.onPlay);
+    this.player = new shaka.Player(this.videoElement);
 
     this.muted = false;
     this.rate = 1.0;
@@ -70,43 +74,37 @@ class RCTVideo extends RCTView {
   }
 
   presentFullscreenPlayer() {
-    console.log("V PF");
     this.videoElement.webkitRequestFullScreen();
   }
 
   set controls(value: boolean) {
-    if (value) {
-      this.videoElement.controls = true;
-      this.videoElement.style.pointerEvents = "auto";
-    } else {
-      this.videoElement.controls = false;
-      this.videoElement.style.pointerEvents = "";
-    }
+    this.videoElement.controls = value;
+    this.videoElement.style.pointerEvents = value ? "auto" : "";
+  }
+
+  set id(value: string) {
+    this.videoElement.id = value;
   }
 
   set muted(value: boolean) {
-    if (value) {
-      this.videoElement.muted = true;
-    } else {
-      this.videoElement.muted = false;
-    }
+    this.videoElement.muted = true;
   }
 
   set paused(value: boolean) {
-    this.playPromise.then(() => {
-      if (value) {
-        this.videoElement.pause();
-      } else {
-        this.playPromise = this.videoElement.play().catch(console.error);
-      }
-    });
+    if (value) {
+      this.videoElement.pause();
+    } else {
+      this.requestPlay();
+    }
     this._paused = value;
   }
 
   set progressUpdateInterval(value: number) {
     this._progressUpdateInterval = value;
     this.stopProgressTimer();
-    this.startProgressTimer();
+    if (!this._paused) {
+      this.startProgressTimer();
+    }
   }
 
   set rate(value: number) {
@@ -115,11 +113,7 @@ class RCTVideo extends RCTView {
   }
 
   set repeat(value: boolean) {
-    if (value) {
-      this.videoElement.setAttribute("loop", "true");
-    } else {
-      this.videoElement.removeAttribute("loop");
-    }
+    this.videoElement.loop = value;
   }
 
   set resizeMode(value: number) {
@@ -158,9 +152,19 @@ class RCTVideo extends RCTView {
       uri = URL.createObjectURL(blob);
     }
 
-    this.videoElement.setAttribute("src", uri);
-    if (!this._paused) {
-      this.playPromise = this.videoElement.play();
+    if (!shaka.Player.isBrowserSupported()) { // primarily iOS WebKit
+      this.videoElement.setAttribute("src", uri);
+      if (!this._paused) {
+        this.requestPlay();
+      }
+    } else {
+      this.player.load(uri)
+        .then(() => {
+          if (!this._paused) {
+            this.requestPlay();
+          }
+        })
+        .catch(this.onError);
     }
   }
 
@@ -177,6 +181,10 @@ class RCTVideo extends RCTView {
     this.onProgress();
     this.sendEvent("topVideoEnd", null);
     this.stopProgressTimer();    
+  }
+
+  onError = error => {
+    console.warn("topVideoError", error);
   }
 
   onLoad = () => {
@@ -215,9 +223,28 @@ class RCTVideo extends RCTView {
   onProgress = () => {
     const payload = {
       currentTime: this.videoElement.currentTime,
-      duration: this.videoElement.duration
+      seekableDuration: this.videoElement.duration
     };
     this.sendEvent("topVideoProgress", payload);
+  }
+
+  onRejectedAutoplay = () => {
+    this.sendEvent("topVideoRejectedAutoplay", null);
+  }
+
+  requestPlay() {
+    const playPromise = this.videoElement.play();
+    if (playPromise) {
+      playPromise
+        .then(() => {})
+        .catch(e => {
+          /* This is likely one of:
+           * name: NotAllowedError - autoplay is not supported
+           * name: NotSupportedError - format is not supported
+           */
+          this.onError({ code: e.name, message: e.message });
+        });
+    }
   }
 
   sendEvent(eventName, payload) {
