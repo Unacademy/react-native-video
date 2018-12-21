@@ -38,7 +38,7 @@ static int const RCTVideoUnset = -1;
   BOOL _playbackRateObserverRegistered;
   BOOL _isExternalPlaybackActiveObserverRegistered;
   BOOL _videoLoadStarted;
-  
+
   bool _pendingSeek;
   float _pendingSeekTime;
   float _lastSeekTime;
@@ -51,6 +51,8 @@ static int const RCTVideoUnset = -1;
   /* Keep track of any modifiers, need to be applied after each play */
   float _volume;
   float _rate;
+  float _maxBitRate;
+
   BOOL _muted;
   BOOL _paused;
   BOOL _repeat;
@@ -114,7 +116,7 @@ static int const RCTVideoUnset = -1;
                                              selector:@selector(applicationWillEnterForeground:)
                                                  name:UIApplicationWillEnterForegroundNotification
                                                object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(audioRouteChanged:)
                                                  name:AVAudioSessionRouteChangeNotification
@@ -130,7 +132,7 @@ static int const RCTVideoUnset = -1;
     viewController.showsPlaybackControls = YES;
     viewController.rctDelegate = self;
     viewController.preferredOrientation = _fullscreenOrientation;
-    
+
     viewController.view.frame = self.bounds;
     viewController.player = player;
     viewController.view.frame = self.bounds;
@@ -337,7 +339,7 @@ static int const RCTVideoUnset = -1;
       _playerItem = playerItem;
       [self addPlayerItemObservers];
       [self setFilter:_filterName];
-
+      [self setMaxBitRate:_maxBitRate];
       [_player pause];
       [_playerViewController.view removeFromSuperview];
       _playerViewController = nil;
@@ -350,16 +352,16 @@ static int const RCTVideoUnset = -1;
         [_player removeObserver:self forKeyPath:externalPlaybackActive context:nil];
         _isExternalPlaybackActiveObserverRegistered = NO;
       }
-        
+
       _player = [AVPlayer playerWithPlayerItem:_playerItem];
       _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
         
       [_player addObserver:self forKeyPath:playbackRate options:0 context:nil];
       _playbackRateObserverRegistered = YES;
-      
+
       [_player addObserver:self forKeyPath:externalPlaybackActive options:0 context:nil];
       _isExternalPlaybackActiveObserverRegistered = YES;
-        
+
       [self addPlayerTimeObserver];
 
       //Perform on next run loop, otherwise onVideoLoadStart is nil
@@ -399,6 +401,11 @@ static int const RCTVideoUnset = -1;
   return nil;
 }
 
+- (void)setMaxBitRate:(float) maxBitRate {
+  _maxBitRate = maxBitRate;
+  [self applyModifiers];
+}
+
 - (void)playerItemPrepareText:(AVAsset *)asset assetOptions:(NSDictionary * __nullable)assetOptions withCallback:(void(^)(AVPlayerItem *))handler
 {
   if (!_textTracks) {
@@ -415,14 +422,14 @@ static int const RCTVideoUnset = -1;
                           ofTrack:videoAsset
                            atTime:kCMTimeZero
                             error:nil];
-  
+
   AVAssetTrack *audioAsset = [asset tracksWithMediaType:AVMediaTypeAudio].firstObject;
   AVMutableCompositionTrack *audioCompTrack = [mixComposition addMutableTrackWithMediaType:AVMediaTypeAudio preferredTrackID:kCMPersistentTrackID_Invalid];
   [audioCompTrack insertTimeRange:CMTimeRangeMake(kCMTimeZero, videoAsset.timeRange.duration)
                           ofTrack:audioAsset
                            atTime:kCMTimeZero
                             error:nil];
-  
+
   NSMutableArray* validTextTracks = [NSMutableArray array];
   for (int i = 0; i < _textTracks.count; ++i) {
     AVURLAsset *textURLAsset;
@@ -687,7 +694,7 @@ static int const RCTVideoUnset = -1;
                                            selector:@selector(playerItemDidReachEnd:)
                                                name:AVPlayerItemDidPlayToEndTimeNotification
                                              object:[_player currentItem]];
-  
+
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:AVPlayerItemPlaybackStalledNotification
                                                 object:nil];
@@ -859,7 +866,9 @@ static int const RCTVideoUnset = -1;
     [_player setVolume:_volume];
     [_player setMuted:NO];
   }
-  
+
+  _playerItem.preferredPeakBitRate = _maxBitRate;
+
   [self setSelectedAudioTrack:_selectedAudioTrack];
   [self setSelectedTextTrack:_selectedTextTrack];
   [self setResizeMode:_resizeMode];
@@ -880,7 +889,7 @@ static int const RCTVideoUnset = -1;
     AVMediaSelectionGroup *group = [_player.currentItem.asset
                                     mediaSelectionGroupForMediaCharacteristic:characteristic];
     AVMediaSelectionOption *mediaOption;
-  
+
     if ([type isEqualToString:@"disabled"]) {
       // Do nothing. We want to ensure option is nil
     } else if ([type isEqualToString:@"language"] || [type isEqualToString:@"title"]) {
@@ -913,7 +922,7 @@ static int const RCTVideoUnset = -1;
       [_player.currentItem selectMediaOptionAutomaticallyInMediaSelectionGroup:group];
       return;
     }
-  
+
     // If a match isn't found, option will be nil and text tracks will be disabled
     [_player.currentItem selectMediaOption:mediaOption inMediaSelectionGroup:group];
 }
@@ -993,7 +1002,7 @@ static int const RCTVideoUnset = -1;
       }
     }
   }
-  
+
   for (int i = firstTextIndex; i < _player.currentItem.tracks.count; ++i) {
     BOOL isEnabled = NO;
     if (selectedTrackIndex != RCTVideoUnset) {
@@ -1049,7 +1058,7 @@ static int const RCTVideoUnset = -1;
 - (void)setTextTracks:(NSArray*) textTracks;
 {
   _textTracks = textTracks;
-  
+
   // in case textTracks was set after selectedTextTrack
   if (_selectedTextTrack) [self setSelectedTextTrack:_selectedTextTrack];
 }
@@ -1223,7 +1232,7 @@ static int const RCTVideoUnset = -1;
 - (void)setProgressUpdateInterval:(float)progressUpdateInterval
 {
   _progressUpdateInterval = progressUpdateInterval;
-  
+
   if (_timeObserver) {
     [self removePlayerTimeObserver];
     [self addPlayerTimeObserver];
