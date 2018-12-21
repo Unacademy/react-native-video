@@ -122,6 +122,7 @@ class ReactExoplayerView extends FrameLayout implements
     private String audioTrackType;
     private Dynamic audioTrackValue;
     private ReadableArray audioTracks;
+    private int maxBitRate = 0;
     private String textTrackType;
     private Dynamic textTrackValue;
     private ReadableArray textTracks;
@@ -240,6 +241,9 @@ class ReactExoplayerView extends FrameLayout implements
         if (player == null) {
             TrackSelection.Factory videoTrackSelectionFactory = new AdaptiveTrackSelection.Factory(BANDWIDTH_METER);
             trackSelector = new DefaultTrackSelector(videoTrackSelectionFactory);
+            trackSelector.setParameters(trackSelector.buildUponParameters()
+                            .setMaxVideoBitrate(maxBitRate == 0 ? Integer.MAX_VALUE : maxBitRate));
+
             DefaultAllocator allocator = new DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE);
             DefaultLoadControl defaultLoadControl = new DefaultLoadControl(allocator, minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs, -1, true);
             player = ExoPlayerFactory.newSimpleInstance(getContext(), trackSelector, defaultLoadControl);
@@ -299,6 +303,15 @@ class ReactExoplayerView extends FrameLayout implements
             }
         }
     }
+
+    public void setMaxBitRateModifier(int newMaxBitRate) {
+        maxBitRate = newMaxBitRate;
+        if (player != null) {
+            trackSelector.setParameters(trackSelector.buildUponParameters()
+                    .setMaxVideoBitrate(maxBitRate == 0 ? Integer.MAX_VALUE : maxBitRate));
+        }
+    }
+
 
     private ArrayList<MediaSource> buildTextSources() {
         ArrayList<MediaSource> textSources = new ArrayList<>();

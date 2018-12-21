@@ -49,6 +49,8 @@ static int const RCTVideoUnset = -1;
   /* Keep track of any modifiers, need to be applied after each play */
   float _volume;
   float _rate;
+  float _maxBitRate;
+
   BOOL _muted;
   BOOL _paused;
   BOOL _repeat;
@@ -324,6 +326,8 @@ static int const RCTVideoUnset = -1;
     [self playerItemForSource:source withCallback:^(AVPlayerItem * playerItem) {
       _playerItem = playerItem;
       [self addPlayerItemObservers];
+
+      [self setMaxBitRate:_maxBitRate];
       
       [_player pause];
       [_playerViewController.view removeFromSuperview];
@@ -377,6 +381,11 @@ static int const RCTVideoUnset = -1;
     return [NSURL fileURLWithPath:path];
   }
   return nil;
+}
+
+- (void)setMaxBitRate:(float) maxBitRate {
+  _maxBitRate = maxBitRate;
+  [self applyModifiers];
 }
 
 - (void)playerItemPrepareText:(AVAsset *)asset assetOptions:(NSDictionary * __nullable)assetOptions withCallback:(void(^)(AVPlayerItem *))handler
@@ -833,6 +842,8 @@ static int const RCTVideoUnset = -1;
     [_player setVolume:_volume];
     [_player setMuted:NO];
   }
+
+  _playerItem.preferredPeakBitRate = _maxBitRate;
 
   [self setSelectedAudioTrack:_selectedAudioTrack];
   [self setSelectedTextTrack:_selectedTextTrack];
