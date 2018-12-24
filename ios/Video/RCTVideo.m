@@ -385,7 +385,7 @@ static int const RCTVideoUnset = -1;
 
 - (void)setMaxBitRate:(float) maxBitRate {
   _maxBitRate = maxBitRate;
-  [self applyModifiers];
+  _playerItem.preferredPeakBitRate = maxBitRate;
 }
 
 - (void)playerItemPrepareText:(AVAsset *)asset assetOptions:(NSDictionary * __nullable)assetOptions withCallback:(void(^)(AVPlayerItem *))handler
@@ -843,7 +843,7 @@ static int const RCTVideoUnset = -1;
     [_player setMuted:NO];
   }
 
-  _playerItem.preferredPeakBitRate = _maxBitRate;
+  [self setMaxBitRate:_maxBitRate];
 
   [self setSelectedAudioTrack:_selectedAudioTrack];
   [self setSelectedTextTrack:_selectedTextTrack];
