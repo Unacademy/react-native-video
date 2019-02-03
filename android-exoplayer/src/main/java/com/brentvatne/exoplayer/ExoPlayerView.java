@@ -219,7 +219,7 @@ public final class ExoPlayerView extends FrameLayout {
                 index = -1*index - 2;
             }
 
-            if (index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
                 long val = Long.parseLong(((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.replace("alok11-", "").replace(".ts", ""));
                 if (fileChangeListener != null) {
                     try {
