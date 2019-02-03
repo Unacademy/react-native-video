@@ -163,6 +163,12 @@ export default class Video extends Component {
     }
   };
 
+  _onManifestFileChange = (event) => {
+    if (this.props.onManifestFileChange) {
+      this.props.onManifestFileChange(event.nativeEvent);
+    }
+  }
+
   _onPlaybackRateChange = (event) => {
     if (this.state.showPoster && event.nativeEvent.playbackRate !== 0 && !this.props.audioOnly) {
       this.setState({showPoster: false});
@@ -244,6 +250,7 @@ export default class Video extends Component {
       onPlaybackStalled: this._onPlaybackStalled,
       onPlaybackResume: this._onPlaybackResume,
       onPlaybackRateChange: this._onPlaybackRateChange,
+      onManifestFileChange: this._onManifestFileChange,
       onAudioFocusChanged: this._onAudioFocusChanged,
       onAudioBecomingNoisy: this._onAudioBecomingNoisy,
     });
@@ -364,6 +371,7 @@ Video.propTypes = {
   onPlaybackStalled: PropTypes.func,
   onPlaybackResume: PropTypes.func,
   onPlaybackRateChange: PropTypes.func,
+  onManifestFileChange: PropTypes.func,
   onAudioFocusChanged: PropTypes.func,
   onAudioBecomingNoisy: PropTypes.func,
 

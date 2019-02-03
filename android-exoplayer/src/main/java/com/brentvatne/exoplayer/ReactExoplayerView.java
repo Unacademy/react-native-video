@@ -190,6 +190,12 @@ class ReactExoplayerView extends FrameLayout implements
                 LayoutParams.MATCH_PARENT);
         exoPlayerView = new ExoPlayerView(getContext());
         exoPlayerView.setLayoutParams(layoutParams);
+        exoPlayerView.setFileChangeListener(new ExoPlayerView.FileChangeListener() {
+            @Override
+            public void onFileChange(String file, long time) {
+                eventEmitter.manifestFileChange(file, time);
+            }
+        });
 
         addView(exoPlayerView, 0, layoutParams);
     }

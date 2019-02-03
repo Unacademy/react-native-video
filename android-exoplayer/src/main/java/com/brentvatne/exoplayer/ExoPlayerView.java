@@ -16,15 +16,22 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
+import com.google.android.exoplayer2.source.SinglePeriodTimeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
+import com.google.android.exoplayer2.source.hls.HlsManifest;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 @TargetApi(16)
 public final class ExoPlayerView extends FrameLayout {
@@ -37,11 +44,16 @@ public final class ExoPlayerView extends FrameLayout {
     private SimpleExoPlayer player;
     private Context context;
     private ViewGroup.LayoutParams layoutParams;
+    private FileChangeListener fileChangeListener;
 
     private boolean useTextureView = false;
 
     public ExoPlayerView(Context context) {
         this(context, null);
+    }
+
+    public void setFileChangeListener(FileChangeListener listener) {
+        fileChangeListener = listener;
     }
 
     public ExoPlayerView(Context context, AttributeSet attrs) {
@@ -187,6 +199,46 @@ public final class ExoPlayerView extends FrameLayout {
         shutterView.setVisibility(VISIBLE);
     }
 
+    public int compareL(long x, long y) {
+        return (x < y) ? -1 : ((x == y) ? 0 : 1);
+    }
+
+    public void sendFileChangeEventForTime(long time) {
+        Object manifest = player.getCurrentManifest();
+        if (manifest instanceof HlsManifest) {
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", 0, 0, time*1000, "", "", 0, 0, false);
+
+            int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
+                @Override
+                public int compare(HlsMediaPlaylist.Segment o1, HlsMediaPlaylist.Segment o2) {
+                    return compareL(o1.relativeStartTimeUs, o2.relativeStartTimeUs);
+                }
+            });
+
+            if(index < 0) {
+                index = -1*index - 2;
+            }
+
+            if (index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+                long val = Long.parseLong(((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.replace("alok11-", "").replace(".ts", ""));
+                if (fileChangeListener != null) {
+                    try {
+                        fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs);
+                    } catch (Exception ignore) {
+                    }
+                }
+            }
+        }
+    }
+
+    public void sendFileChangeEventForTime() {
+        sendFileChangeEventForTime(player.getCurrentPosition());
+    }
+
+    public interface FileChangeListener {
+        public void onFileChange(String file, long time);
+    }
+
     private final class ComponentListener implements SimpleExoPlayer.VideoListener,
             TextRenderer.Output, ExoPlayer.EventListener {
 
@@ -219,11 +271,13 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onLoadingChanged(boolean isLoading) {
+            sendFileChangeEventForTime();
             // Do nothing.
         }
 
         @Override
         public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
+            sendFileChangeEventForTime();
             // Do nothing.
         }
 
@@ -234,11 +288,16 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onPositionDiscontinuity(int reason) {
+            sendFileChangeEventForTime();
             // Do nothing.
         }
 
+
         @Override
         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
+            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC)) {
+                sendFileChangeEventForTime();
+            }
             // Do nothing.
         }
 
@@ -249,11 +308,13 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onPlaybackParametersChanged(PlaybackParameters params) {
+            sendFileChangeEventForTime();
             // Do nothing
         }
 
         @Override
         public void onSeekProcessed() {
+            sendFileChangeEventForTime();
             // Do nothing.
         }
 

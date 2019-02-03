@@ -45,6 +45,7 @@ class VideoEventEmitter {
     private static final String EVENT_AUDIO_BECOMING_NOISY = "onVideoAudioBecomingNoisy";
     private static final String EVENT_AUDIO_FOCUS_CHANGE = "onAudioFocusChanged";
     private static final String EVENT_PLAYBACK_RATE_CHANGE = "onPlaybackRateChange";
+    private static final String EVENT_MANIFEST_FILE_CHANGE = "onManifestFileChange";
 
     static final String[] Events = {
             EVENT_LOAD_START,
@@ -66,6 +67,7 @@ class VideoEventEmitter {
             EVENT_AUDIO_BECOMING_NOISY,
             EVENT_AUDIO_FOCUS_CHANGE,
             EVENT_PLAYBACK_RATE_CHANGE,
+            EVENT_MANIFEST_FILE_CHANGE
     };
 
     @Retention(RetentionPolicy.SOURCE)
@@ -89,6 +91,7 @@ class VideoEventEmitter {
             EVENT_AUDIO_BECOMING_NOISY,
             EVENT_AUDIO_FOCUS_CHANGE,
             EVENT_PLAYBACK_RATE_CHANGE,
+            EVENT_MANIFEST_FILE_CHANGE
     })
     @interface VideoEvents {
     }
@@ -114,6 +117,8 @@ class VideoEventEmitter {
     private static final String EVENT_PROP_HAS_AUDIO_FOCUS = "hasAudioFocus";
     private static final String EVENT_PROP_IS_BUFFERING = "isBuffering";
     private static final String EVENT_PROP_PLAYBACK_RATE = "playbackRate";
+    private static final String EVENT_PROP_FILE_NAME = "filename";
+    private static final String EVENT_PROP_FILE_TIME = "filetime";
 
     private static final String EVENT_PROP_ERROR = "error";
     private static final String EVENT_PROP_ERROR_STRING = "errorString";
@@ -223,6 +228,13 @@ class VideoEventEmitter {
         WritableMap map = Arguments.createMap();
         map.putDouble(EVENT_PROP_PLAYBACK_RATE, (double)rate);
         receiveEvent(EVENT_PLAYBACK_RATE_CHANGE, map);
+    }
+
+    void manifestFileChange(String file, long fileTime) {
+        WritableMap map = Arguments.createMap();
+        map.putString(EVENT_PROP_FILE_NAME, file);
+        map.putDouble(EVENT_PROP_FILE_TIME, fileTime);
+        receiveEvent(EVENT_MANIFEST_FILE_CHANGE, map);
     }
 
     void timedMetadata(Metadata metadata) {
