@@ -221,6 +221,46 @@ public final class ExoPlayerView extends FrameLayout {
         shutterView.setVisibility(VISIBLE);
     }
 
+    public int compareL(long x, long y) {
+        return (x < y) ? -1 : ((x == y) ? 0 : 1);
+    }
+
+    public void sendFileChangeEventForTime(long time) {
+        Object manifest = player.getCurrentManifest();
+        if (manifest instanceof HlsManifest) {
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", 0, 0, time*1000, "", "", 0, 0, false);
+
+            int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
+                @Override
+                public int compare(HlsMediaPlaylist.Segment o1, HlsMediaPlaylist.Segment o2) {
+                    return compareL(o1.relativeStartTimeUs, o2.relativeStartTimeUs);
+                }
+            });
+
+            if(index < 0) {
+                index = -1*index - 2;
+            }
+
+            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+                long val = Long.parseLong(((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.replace("alok11-", "").replace(".ts", ""));
+                if (fileChangeListener != null) {
+                    try {
+                        fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs);
+                    } catch (Exception ignore) {
+                    }
+                }
+            }
+        }
+    }
+
+    public void sendFileChangeEventForTime() {
+        sendFileChangeEventForTime(player.getCurrentPosition());
+    }
+
+    public interface FileChangeListener {
+        public void onFileChange(String file, long time);
+    }
+
     private final class ComponentListener implements SimpleExoPlayer.VideoListener,
             TextRenderer.Output, ExoPlayer.EventListener {
 
