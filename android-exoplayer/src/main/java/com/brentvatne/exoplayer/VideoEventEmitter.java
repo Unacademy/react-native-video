@@ -230,10 +230,11 @@ class VideoEventEmitter {
         receiveEvent(EVENT_PLAYBACK_RATE_CHANGE, map);
     }
 
-    void manifestFileChange(String file, long fileTime) {
+    void manifestFileChange(String file, long fileTime, long duration) {
         WritableMap map = Arguments.createMap();
         map.putString(EVENT_PROP_FILE_NAME, file);
         map.putDouble(EVENT_PROP_FILE_TIME, fileTime);
+        map.putDouble(EVENT_PROP_DURATION, duration);
         receiveEvent(EVENT_MANIFEST_FILE_CHANGE, map);
     }
 

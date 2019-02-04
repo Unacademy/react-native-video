@@ -192,8 +192,8 @@ class ReactExoplayerView extends FrameLayout implements
         exoPlayerView.setLayoutParams(layoutParams);
         exoPlayerView.setFileChangeListener(new ExoPlayerView.FileChangeListener() {
             @Override
-            public void onFileChange(String file, long time) {
-                eventEmitter.manifestFileChange(file, time);
+            public void onFileChange(String file, long time, long duration) {
+                eventEmitter.manifestFileChange(file, time, duration);
             }
         });
 
