@@ -228,7 +228,7 @@ public final class ExoPlayerView extends FrameLayout {
     public void sendFileChangeEventForTime(long time) {
         Object manifest = player.getCurrentManifest();
         if (manifest instanceof HlsManifest) {
-            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", 0, 0, time*1000, "", "", 0, 0, false);
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null, 0, 0, time*1000, "", "", 0, 0, false);
 
             int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
                 @Override
@@ -245,7 +245,7 @@ public final class ExoPlayerView extends FrameLayout {
                 long val = Long.parseLong(((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.replace("alok11-", "").replace(".ts", ""));
                 if (fileChangeListener != null) {
                     try {
-                        fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs);
+                        fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
                     } catch (Exception ignore) {
                     }
                 }
@@ -258,7 +258,7 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     public interface FileChangeListener {
-        public void onFileChange(String file, long time);
+        public void onFileChange(String file, long time, long duration);
     }
 
     private final class ComponentListener implements SimpleExoPlayer.VideoListener,
