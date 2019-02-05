@@ -219,13 +219,19 @@ public final class ExoPlayerView extends FrameLayout {
                 index = -1*index - 2;
             }
 
-            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
-                long val = Long.parseLong(((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.replace("alok11-", "").replace(".ts", ""));
-                if (fileChangeListener != null) {
-                    try {
-                        fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
-                    } catch (Exception ignore) {
+             if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+                try {
+                    String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
+                    long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
+                    if (fileChangeListener != null) {
+                        try {
+                            fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
+                        } catch (Exception ignore) {
+//                            ignore.printStackTrace();
+                        }
                     }
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
         }
