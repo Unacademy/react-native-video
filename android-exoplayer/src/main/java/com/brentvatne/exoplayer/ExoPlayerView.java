@@ -225,7 +225,7 @@ public final class ExoPlayerView extends FrameLayout {
                     long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
                     if (fileChangeListener != null) {
                         try {
-                            fileChangeListener.onFileChange(val + "", segment.relativeStartTimeUs - ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
+                            fileChangeListener.onFileChange(val + "", ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
                         } catch (Exception ignore) {
 //                            ignore.printStackTrace();
                         }
