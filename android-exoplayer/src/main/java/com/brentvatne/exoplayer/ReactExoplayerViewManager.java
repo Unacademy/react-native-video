@@ -53,7 +53,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_DISABLE_FOCUS = "disableFocus";
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
-    private static final String PROP_SET_TRANSPARENT_COLOR = "customTextureAlphaColor";
+    private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
 
     @Override
     public String getName() {
@@ -228,11 +228,9 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
         videoView.setUseTextureView(useTextureView);
     }
 
-    @ReactProp(name = PROP_SET_TRANSPARENT_COLOR)
-    public void setCustomTextureAlphaColor(final ReactExoplayerView videoView, @Nullable String color) {
-        if (color != null) {
-            videoView.setCustomTextureTransparentColor(Color.parseColor(color));
-        }
+    @ReactProp(name = PROP_USE_GREEN_SCREEN)
+    public void setPropUseGreenScreen(final ReactExoplayerView videoView, boolean useGreenScreen) {
+        videoView.setUseGreenScreen(useGreenScreen);
     }
 
     @ReactProp(name = PROP_BUFFER_CONFIG)

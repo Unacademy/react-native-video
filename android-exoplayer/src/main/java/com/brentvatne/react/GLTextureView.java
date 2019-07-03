@@ -539,17 +539,15 @@ public class GLTextureView
             surfaceChanged(surface, 0, width, height);
         }
     }
-
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
         if(newSurfaceTextureListener != null) {
-            //surfaceChanged(surface, 0, width, height);
             if(alphaTexture != null) {
                 surface =  alphaTexture;
             }
             newSurfaceTextureListener.onSurfaceTextureSizeChanged(surface, width, height);
-        } else {
-            //surfaceChanged(surface, 0, width, height);
         }
+        surfaceChanged(surface, 0, width, height);
+
     }
 
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
@@ -1381,7 +1379,7 @@ public class GLTextureView
                                 }
 
                                 if (mHaveEglSurface) {
-                                    if (mSizeChanged) {
+                                    if (mSizeChanged && isInitialSizeChangeWhenCreated) {
                                         sizeChanged = true;
                                         w = mWidth;
                                         h = mHeight;
@@ -1396,8 +1394,22 @@ public class GLTextureView
                                         createEglSurface = true;
 
                                         mSizeChanged = false;
+                                        mRequestRender = false;
+                                    } else if (mSizeChanged && !isInitialSizeChangeWhenCreated) {
+                                        sizeChanged = true;
+                                        w = mWidth;
+                                        h = mHeight;
+                                        wantRenderNotification = true;
+                                        if (LOG_SURFACE) {
+                                            Log.i("GLThread",
+                                                    "noticing that we want render notification tid="
+                                                            + getId());
+                                        }
+                                        mSizeChanged = false;
+                                        mRequestRender = true;
+                                    } else {
+                                        mRequestRender = false;
                                     }
-                                    mRequestRender = false;
                                     sGLThreadManager.notifyAll();
                                     break;
                                 }
@@ -1630,6 +1642,7 @@ public class GLTextureView
 
         public void onWindowResize(int w, int h) {
             synchronized (sGLThreadManager) {
+                isInitialSizeChangeWhenCreated = mWidth == 0 && mHeight == 0;
                 mWidth = w;
                 mHeight = h;
                 mSizeChanged = true;
@@ -1706,6 +1719,7 @@ public class GLTextureView
         private boolean mRenderComplete;
         private ArrayList<Runnable> mEventQueue = new ArrayList<Runnable>();
         private boolean mSizeChanged = true;
+        private boolean isInitialSizeChangeWhenCreated = true;
 
         // End of member variables protected by the sGLThreadManager monitor.
 
