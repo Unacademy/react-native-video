@@ -1,6 +1,7 @@
 package com.brentvatne.exoplayer;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.net.Uri;
 import android.text.TextUtils;
 
@@ -52,6 +53,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_DISABLE_FOCUS = "disableFocus";
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
+    private static final String PROP_SET_TRANSPARENT_COLOR = "customTextureAlphaColor";
 
     @Override
     public String getName() {
@@ -224,6 +226,13 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_USE_TEXTURE_VIEW, defaultBoolean = false)
     public void setUseTextureView(final ReactExoplayerView videoView, final boolean useTextureView) {
         videoView.setUseTextureView(useTextureView);
+    }
+
+    @ReactProp(name = PROP_SET_TRANSPARENT_COLOR)
+    public void setCustomTextureAlphaColor(final ReactExoplayerView videoView, @Nullable String color) {
+        if (color != null) {
+            videoView.setCustomTextureTransparentColor(Color.parseColor(color));
+        }
     }
 
     @ReactProp(name = PROP_BUFFER_CONFIG)

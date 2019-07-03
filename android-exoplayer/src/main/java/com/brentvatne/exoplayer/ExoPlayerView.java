@@ -2,16 +2,20 @@ package com.brentvatne.exoplayer;
 
 import android.annotation.TargetApi;
 import android.content.Context;
+import android.graphics.Color;
 import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
+import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import com.brentvatne.react.GLTextureView;
+import com.brentvatne.react.VideoRenderer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -45,8 +49,9 @@ public final class ExoPlayerView extends FrameLayout {
     private Context context;
     private ViewGroup.LayoutParams layoutParams;
     private FileChangeListener fileChangeListener;
-
+    private int transparentColor = Color.GREEN;
     private boolean useTextureView = false;
+    private boolean useCustomTextureView = false;
 
     public ExoPlayerView(Context context) {
         this(context, null);
@@ -104,7 +109,12 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     private void updateSurfaceView() {
-        View view = useTextureView ? new TextureView(context) : new SurfaceView(context);
+        View view;
+        if (useCustomTextureView) {
+            view = new GLTextureView(context);
+        } else {
+            view = useTextureView ? new TextureView(context) : new SurfaceView(context);
+        }
         view.setLayoutParams(layoutParams);
 
         surfaceView = view;
@@ -112,10 +122,29 @@ public final class ExoPlayerView extends FrameLayout {
             layout.removeViewAt(0);
         }
         layout.addView(surfaceView, 0, layoutParams);
-
-        if (this.player != null) {
-            setVideoView();
+        if (view instanceof GLTextureView) {
+            GLTextureView glTextureView = (GLTextureView) view;
+            glTextureView.setAlphaColorForRenderer(transparentColor);
+            glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
+                @Override
+                public void onSurfaceCreated() {
+                    if (ExoPlayerView.this.player != null) {
+                        setVideoView();
+                        player.setVideoListener(componentListener);
+                        player.addListener(componentListener);
+                        player.setTextOutput(componentListener);
+                    }
+                }
+            });
+        } else {
+            if (this.player != null) {
+                setVideoView();
+            }
         }
+    }
+
+    public interface OnSurfaceCreatedCallBack {
+        void onSurfaceCreated();
     }
 
     /**
@@ -137,7 +166,7 @@ public final class ExoPlayerView extends FrameLayout {
         }
         this.player = player;
         shutterView.setVisibility(VISIBLE);
-        if (player != null) {
+        if (player != null && !useCustomTextureView) {
             setVideoView();
             player.setVideoListener(componentListener);
             player.addListener(componentListener);
@@ -170,6 +199,12 @@ public final class ExoPlayerView extends FrameLayout {
 
     public void setUseTextureView(boolean useTextureView) {
         this.useTextureView = useTextureView;
+        updateSurfaceView();
+    }
+
+    public void setUseCustomTextureView(int color) {
+        this.useCustomTextureView = true;
+        this.transparentColor = color;
         updateSurfaceView();
     }
 

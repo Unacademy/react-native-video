@@ -137,7 +137,7 @@ class ReactExoplayerView extends FrameLayout implements
     private final ThemedReactContext themedReactContext;
     private final AudioManager audioManager;
     private final AudioBecomingNoisyReceiver audioBecomingNoisyReceiver;
-
+    private int transparentColor;
     private final Handler progressHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -972,5 +972,12 @@ class ReactExoplayerView extends FrameLayout implements
         bufferForPlaybackAfterRebufferMs = newBufferForPlaybackAfterRebufferMs;
         releasePlayer();
         initializePlayer();
+    }
+
+    public void setCustomTextureTransparentColor(int color) {
+        this.transparentColor = color;
+        if (exoPlayerView != null) {
+            exoPlayerView.setUseCustomTextureView(transparentColor);
+        }
     }
 }
