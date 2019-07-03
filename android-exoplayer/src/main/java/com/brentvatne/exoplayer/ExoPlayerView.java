@@ -52,8 +52,7 @@ public final class ExoPlayerView extends FrameLayout {
     private ViewGroup.LayoutParams layoutParams;
     private FileChangeListener fileChangeListener;
     private int transparentColor = Color.GREEN;
-    private boolean useTextureView = true;
-    private boolean hideShutterView = false;
+    private boolean useTextureView = false;
     private boolean useCustomTextureView = false;
 
     public ExoPlayerView(Context context) {
@@ -121,7 +120,7 @@ public final class ExoPlayerView extends FrameLayout {
 
     private void updateSurfaceView() {
         View view;
-        if (useCustomTextureView) {
+        if (useGreenScreen) {
             view = new GLTextureView(context);
         } else {
             view = useTextureView ? new TextureView(context) : new SurfaceView(context);
@@ -135,7 +134,6 @@ public final class ExoPlayerView extends FrameLayout {
         layout.addView(surfaceView, 0, layoutParams);
         if (view instanceof GLTextureView) {
             GLTextureView glTextureView = (GLTextureView) view;
-            glTextureView.setAlphaColorForRenderer(transparentColor);
             glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
                 @Override
                 public void onSurfaceCreated() {
@@ -181,7 +179,7 @@ public final class ExoPlayerView extends FrameLayout {
         }
         this.player = player;
         shutterView.setVisibility(VISIBLE);
-        if (player != null && !useCustomTextureView) {
+        if (player != null && !useGreenScreen) {
             setVideoView();
             player.addVideoListener(componentListener);
             player.addListener(componentListener);
@@ -224,16 +222,18 @@ public final class ExoPlayerView extends FrameLayout {
         updateShutterViewVisibility();
     }
 
-    public void setUseCustomTextureView(int color) {
-        this.useCustomTextureView = true;
-        this.transparentColor = color;
-        updateSurfaceView();
+    public void setUseGreenScreen(boolean useGreenScreen) {
+        this.useGreenScreen = useGreenScreen;
+        if (useGreenScreen) {
+            updateSurfaceView();
+        }
     }
 
-    public void setUseCustomTextureView(int color) {
-        this.useCustomTextureView = true;
-        this.transparentColor = color;
-        updateSurfaceView();
+    public void setUseGreenScreen(boolean useGreenScreen) {
+        this.useGreenScreen = useGreenScreen;
+        if (useGreenScreen) {
+            updateSurfaceView();
+        }
     }
 
     private final Runnable measureAndLayout = new Runnable() {
