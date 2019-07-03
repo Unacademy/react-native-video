@@ -155,10 +155,10 @@ public class GLTextureView
     }
 
     SurfaceTextureListener newSurfaceTextureListener;
-//    public SurfaceTextureListener getSurfaceTextureListener() {
-//        return newSurfaceTextureListener;
-//    }
-//
+    public SurfaceTextureListener getSurfaceTextureListener() {
+        return newSurfaceTextureListener;
+    }
+
     public void setSurfaceTextureListener(SurfaceTextureListener listener) {
         newSurfaceTextureListener = listener;
     }
@@ -534,7 +534,7 @@ public class GLTextureView
 
         if(newSurfaceTextureListener != null) {
             newSurfaceTextureListener.onSurfaceTextureAvailable(surface, width, height);
-        }else {
+        } else {
             surfaceCreated(surface);
             surfaceChanged(surface, 0, width, height);
         }
@@ -542,14 +542,13 @@ public class GLTextureView
 
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
         if(newSurfaceTextureListener != null) {
-            surfaceChanged(surface, 0, width, height);
+            //surfaceChanged(surface, 0, width, height);
             if(alphaTexture != null) {
                 surface =  alphaTexture;
             }
-            newSurfaceTextureListener.onSurfaceTextureAvailable(surface, width, height);
             newSurfaceTextureListener.onSurfaceTextureSizeChanged(surface, width, height);
-        }else {
-            surfaceChanged(surface, 0, width, height);
+        } else {
+            //surfaceChanged(surface, 0, width, height);
         }
     }
 
