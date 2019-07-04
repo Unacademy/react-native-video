@@ -1363,6 +1363,9 @@ class ReactExoplayerView extends FrameLayout implements
         this.useGreenScreen = useGreenScreen;
         if (exoPlayerView != null) {
             exoPlayerView.setUseGreenScreen(useGreenScreen);
+            setBackgroundColor(Color.TRANSPARENT);
+            exoPlayerView.setBackgroundColor(Color.TRANSPARENT);
+
         }
     }
 
