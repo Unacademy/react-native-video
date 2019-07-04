@@ -123,6 +123,7 @@ public final class ExoPlayerView extends FrameLayout {
         layout.addView(surfaceView, 0, layoutParams);
         if (view instanceof GLTextureView) {
             GLTextureView glTextureView = (GLTextureView) view;
+            glTextureView.setOpaque(false);
             glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
                 @Override
                 public void onSurfaceCreated() {
