@@ -5,6 +5,7 @@
 #import <React/UIView+React.h>
 #include <MediaAccessibility/MediaAccessibility.h>
 #include <AVFoundation/AVFoundation.h>
+#include "ChromaImageFilter.h"
 
 static NSString *const statusKeyPath = @"status";
 static NSString *const playbackLikelyToKeepUpKeyPath = @"playbackLikelyToKeepUp";
@@ -33,6 +34,7 @@ static int const RCTVideoUnset = -1;
   BOOL _playerLayerObserverSet;
   RCTVideoPlayerViewController *_playerViewController;
   NSURL *_videoURL;
+  BOOL _useGreenScreen;
   BOOL _requestingCertificate;
   BOOL _requestingCertificateErrored;
   
@@ -352,6 +354,18 @@ static int const RCTVideoUnset = -1;
   }
 }
 
+- (AVVideoComposition *) customVideoComposition: (AVPlayerItem *)playerItem {
+    AVVideoComposition * composition = [AVVideoComposition videoCompositionWithAsset:playerItem.asset applyingCIFiltersWithHandler:^(AVAsynchronousCIImageFilteringRequest * _Nonnull request) {
+        
+        ChromaImageFilter *chromaFilter = [[ChromaImageFilter alloc] init];
+        
+        [chromaFilter setValue:request.sourceImage forKey:kCIInputImageKey];
+        return [request finishWithImage:chromaFilter.outputImage context:nil];
+    }];
+    
+    return composition;
+}
+
 #pragma mark - Player and source
 
 - (void)setSrc:(NSDictionary *)source
@@ -366,6 +380,10 @@ static int const RCTVideoUnset = -1;
     [self playerItemForSource:self->_source withCallback:^(AVPlayerItem * playerItem) {
       self->_playerItem = playerItem;
       _playerItem = playerItem;
+      if (_useGreenScreen) {
+         _playerItem.videoComposition = [self customVideoComposition:_playerItem];
+      }
+     
       [self setPreferredForwardBufferDuration:_preferredForwardBufferDuration];
       [self addPlayerItemObservers];
       [self setFilter:self->_filterName];
@@ -846,6 +864,15 @@ static int const RCTVideoUnset = -1;
 }
 
 #pragma mark - Prop setters
+
+- (void)setUseGreenScreen:(BOOL)useGreenScreen {
+    if (_useGreenScreen != useGreenScreen) {
+        _useGreenScreen = useGreenScreen;
+        if (_useGreenScreen && _playerItem) {
+            _playerItem.videoComposition = [self customVideoComposition:_playerItem];
+        }
+    }
+}
 
 - (void)setResizeMode:(NSString*)mode
 {
@@ -1440,6 +1467,10 @@ static int const RCTVideoUnset = -1;
     _playerLayer = [AVPlayerLayer playerLayerWithPlayer:_player];
     _playerLayer.frame = self.bounds;
     _playerLayer.needsDisplayOnBoundsChange = YES;
+      NSMutableDictionary *dict = [NSMutableDictionary dictionary];
+      [dict setObject:[NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA] forKey:(NSString *)kCVPixelBufferPixelFormatTypeKey];
+      _playerLayer.pixelBufferAttributes = dict;
+      
     
     // to prevent video from being animated when resizeMode is 'cover'
     // resize mode must be set before layer is added
