@@ -61,7 +61,7 @@ public class VideoRenderer implements GLTextureView.Renderer, SurfaceTexture.OnF
                     "  vTextureCoord = (uSTMatrix * aTextureCoord).xy;\n" +
                     "}\n";
 
-    private final String alphaShader = "#extension GL_OES_EGL_image_external : require\n"
+    private final String alphaShader =  "#extension GL_OES_EGL_image_external : require\n"
             + "precision mediump float;\n"
             + "varying vec2 vTextureCoord;\n"
             + "uniform samplerExternalOES sTexture;\n"
@@ -77,19 +77,33 @@ public class VideoRenderer implements GLTextureView.Renderer, SurfaceTexture.OnF
             +"  vec3 pixelPrimary = step(fmax, sourcePixel.rgb);\n"
             +"  secondaryComponents = dot(1.0 - pixelPrimary, sourcePixel.rgb);\n"
             +"  float screenSat = fmax - mix(secondaryComponents - fmin, secondaryComponents / 2.0, 1.0);\n"
+            +"  float isSolidSet = 0.0;\n"
             +"  pixelSat = fmax - mix(secondaryComponents - fmin, secondaryComponents / 2.0, 1.0);\n"
             +"  float diffPrimary = dot(abs(pixelPrimary - screenPrimary), vec3(1.0));\n"
             +"  float solid = step(1.0, step(pixelSat, 0.1) + step(fmax, 0.1) + diffPrimary);\n"
-            +"  float alpha = max(0.0, 1.0 - pixelSat / screenSat);\n"
-            +"  alpha = smoothstep(0.0, 1.0, alpha);\n"
-            +"  vec4 semiTransparentPixel = vec4((sourcePixel.rgb - (1.0 - alpha) * screen.rgb * 1.0) / max(0.00001, alpha), alpha);\n"
-            +"  vec4 pixel = vec4(sourcePixel.r, sourcePixel.g, sourcePixel.b, solid);\n"
             +"   gl_FragColor = vec4(sourcePixel.r, sourcePixel.g, sourcePixel.b,1.0);\n"
             +"if(solid == 0.0)\n"
             +"{\n"
             +"gl_FragColor=vec4(sourcePixel.r, sourcePixel.g, sourcePixel.b, 0.0);\n"
+            +"isSolidSet=1.0;\n"
             +"}\n"
-            + "}\n";
+            +"if(isSolidSet == 0.0)\n"
+            +"{\n"
+            +"   screen = vec4(0.0,0.8,0.25,1.0);\n"
+            +"	 fmax1 = max(max(screen.r, screen.g), screen.b);\n"
+            +"   screenPrimary = step(fmax1, screen.rgb);\n"
+            +"   pixelPrimary = step(fmax, sourcePixel.rgb);\n"
+            +"  secondaryComponents = dot(1.0 - pixelPrimary, sourcePixel.rgb);\n"
+            +"  screenSat = fmax - mix(secondaryComponents - fmin, secondaryComponents / 2.0, 1.0);\n"
+            +"  pixelSat = fmax - mix(secondaryComponents - fmin, secondaryComponents / 2.0, 1.0);\n"
+            +"  diffPrimary = dot(abs(pixelPrimary - screenPrimary), vec3(1.0));\n"
+            +"  solid = step(1.0, step(pixelSat, 0.1) + step(fmax, 0.1) + diffPrimary);\n"
+            +"  if(sourcePixel.r < 0.1 && sourcePixel.g > 0.9 && sourcePixel.b < 0.1)\n"
+            +"  {\n"
+            +"  gl_FragColor=vec4(sourcePixel.r, sourcePixel.g, sourcePixel.b, 0.0);\n"
+            +"  }\n"
+            +"}\n"
+            +"}\n";
 
 
 
