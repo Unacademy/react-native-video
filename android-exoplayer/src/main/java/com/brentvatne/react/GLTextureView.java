@@ -127,6 +127,10 @@ public class GLTextureView
         return super.getSurfaceTexture();
     }
 
+    public SurfaceTexture getSurfaceTextureOriginal() {
+        return super.getSurfaceTexture();
+    }
+
 
     /**
      * Standard View constructor. In order to render something, you
@@ -491,6 +495,31 @@ public class GLTextureView
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        resetThreadResourcesForAttach();
+    }
+
+    /**
+     * This method is used as part of the View class and is not normally
+     * called or subclassed by clients of GLTextureView.
+     * Must not be called before a renderer has been set.
+     */
+    @Override
+    protected void onDetachedFromWindow() {
+        cleanThreadResourcesForDetach();
+        super.onDetachedFromWindow();
+    }
+
+    void cleanThreadResourcesForDetach() {
+        if (LOG_ATTACH_DETACH) {
+            Log.d(TAG, "onDetachedFromWindow");
+        }
+        if (mGLThread != null) {
+            mGLThread.requestExitAndWait();
+        }
+        mDetached = true;
+    }
+
+    void resetThreadResourcesForAttach() {
         if (LOG_ATTACH_DETACH) {
             Log.d(TAG, "onAttachedToWindow reattach =" + mDetached);
         }
@@ -508,36 +537,15 @@ public class GLTextureView
         mDetached = false;
     }
 
-    /**
-     * This method is used as part of the View class and is not normally
-     * called or subclassed by clients of GLTextureView.
-     * Must not be called before a renderer has been set.
-     */
-    @Override
-    protected void onDetachedFromWindow() {
-        if (LOG_ATTACH_DETACH) {
-            Log.d(TAG, "onDetachedFromWindow");
-        }
-        if (mGLThread != null) {
-            mGLThread.requestExitAndWait();
-        }
-        mDetached = true;
-        super.onDetachedFromWindow();
-    }
-
     public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                int oldLeft, int oldTop, int oldRight, int oldBottom) {
-        surfaceChanged(getSurfaceTexture(), 0, right - left, bottom - top);
+        surfaceChanged(getSurfaceTextureOriginal(), 0, right - left, bottom - top);
     }
 
     public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-
-        if(newSurfaceTextureListener != null) {
-            newSurfaceTextureListener.onSurfaceTextureAvailable(surface, width, height);
-        } else {
-            surfaceCreated(surface);
-            surfaceChanged(surface, 0, width, height);
-        }
+        onResume();
+        surfaceCreated(surface);
+        surfaceChanged(surface, 0, width, height);
     }
     public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
         if(newSurfaceTextureListener != null) {
@@ -547,15 +555,14 @@ public class GLTextureView
             newSurfaceTextureListener.onSurfaceTextureSizeChanged(surface, width, height);
         }
         surfaceChanged(surface, 0, width, height);
-
     }
 
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+        onPause();
         if(newSurfaceTextureListener != null) {
             newSurfaceTextureListener.onSurfaceTextureDestroyed(surface);
-        } else {
-            surfaceDestroyed(surface);
         }
+        surfaceDestroyed(surface);
         return true;
     }
 
@@ -985,9 +992,9 @@ public class GLTextureView
                 mEglConfig = view.mEGLConfigChooser.chooseConfig(mEgl, mEglDisplay);
 
                 /*
-                * Create an EGL context. We want to do this as rarely as we can, because an
-                * EGL context is a somewhat heavy object.
-                */
+                 * Create an EGL context. We want to do this as rarely as we can, because an
+                 * EGL context is a somewhat heavy object.
+                 */
                 mEglContext = view.mEGLContextFactory.createContext(mEgl, mEglDisplay, mEglConfig);
             }
             if (mEglContext == null || mEglContext == EGL10.EGL_NO_CONTEXT) {
@@ -1036,7 +1043,7 @@ public class GLTextureView
             GLTextureView view = mGLSurfaceViewWeakRef.get();
             if (view != null) {
                 mEglSurface = view.mEGLWindowSurfaceFactory.createWindowSurface(mEgl,
-                        mEglDisplay, mEglConfig, view.getSurfaceTexture());
+                        mEglDisplay, mEglConfig, view.getSurfaceTextureOriginal());
             } else {
                 mEglSurface = null;
             }
