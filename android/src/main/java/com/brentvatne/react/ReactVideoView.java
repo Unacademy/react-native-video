@@ -12,6 +12,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.Surface;
 import android.view.WindowManager;
 import android.view.View;
 import android.view.Window;
@@ -28,10 +29,6 @@ import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableNativeArray;
 import com.facebook.react.uimanager.ThemedReactContext;
 import com.facebook.react.uimanager.events.RCTEventEmitter;
-import com.yqritc.scalablevideoview.ScalableType;
-import com.yqritc.scalablevideoview.ScalableVideoView;
-import com.yqritc.scalablevideoview.ScaleManager;
-import com.yqritc.scalablevideoview.Size;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -141,15 +138,29 @@ public class ReactVideoView extends ScalableVideoView implements
     private boolean isCompleted = false;
     private boolean mUseNativeControls = false;
 
+    private static final int GL_CONTEXT_VERSION = 2;
+
+    private static final int NOT_DEFINED = -1;
+    private static final int NOT_DEFINED_COLOR = 0;
+    VideoRenderer renderer;
+
+    private boolean isSurfaceCreated;
+    private boolean isDataSourceSet;
+
+
     public ReactVideoView(ThemedReactContext themedReactContext) {
         super(themedReactContext);
+
+        setEGLContextClientVersion(GL_CONTEXT_VERSION);
+       setEGLConfigChooser(8, 8, 8, 8, 16, 0);
+
 
         mThemedReactContext = themedReactContext;
         mEventEmitter = themedReactContext.getJSModule(RCTEventEmitter.class);
         themedReactContext.addLifecycleEventListener(this);
 
         initializeMediaPlayerIfNeeded();
-        setSurfaceTextureListener(this);
+        //setSurfaceTextureListener(this);
 
         mProgressUpdateRunnable = new Runnable() {
             @Override
@@ -167,6 +178,28 @@ public class ReactVideoView extends ScalableVideoView implements
                 }
             }
         };
+
+        isSurfaceCreated = true;
+
+        renderer = new VideoRenderer();
+
+
+        renderer.setOnSurfacePrepareListener(new VideoRenderer.OnSurfacePrepareListener() {
+            @Override
+            public void surfacePrepared(Surface surface) {
+                isSurfaceCreated = true;
+                mMediaPlayer.setSurface(surface);
+                surface.release();
+                if (isDataSourceSet) {
+                    prepareAndStartMediaPlayer();
+                }
+            }
+        });
+        setRenderer(renderer);
+
+        bringToFront();
+        setPreserveEGLContextOnPause(true);
+        setOpaque(false);
     }
 
     @Override
@@ -351,11 +384,17 @@ public class ReactVideoView extends ScalableVideoView implements
         event.putMap(ReactVideoViewManager.PROP_SRC, src);
         mEventEmitter.receiveEvent(getId(), Events.EVENT_LOAD_START.toString(), event);
         isCompleted = false;
+        isDataSourceSet = true;
+       if (isSurfaceCreated) {
+            prepareAndStartMediaPlayer();
+        }
+    }
 
+    private void prepareAndStartMediaPlayer() {
         try {
-          prepareAsync(this);
+            prepareAsync(this);
         } catch (Exception e) {
-          e.printStackTrace();
+            e.printStackTrace();
         }
     }
 

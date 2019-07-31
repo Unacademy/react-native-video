@@ -3,6 +3,7 @@ package com.brentvatne.exoplayer;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
@@ -137,7 +138,7 @@ class ReactExoplayerView extends FrameLayout implements
     private final ThemedReactContext themedReactContext;
     private final AudioManager audioManager;
     private final AudioBecomingNoisyReceiver audioBecomingNoisyReceiver;
-
+    private boolean useGreenScreen;
     private final Handler progressHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -972,5 +973,15 @@ class ReactExoplayerView extends FrameLayout implements
         bufferForPlaybackAfterRebufferMs = newBufferForPlaybackAfterRebufferMs;
         releasePlayer();
         initializePlayer();
+    }
+
+    public void setUseGreenScreen(boolean useGreenScreen) {
+        this.useGreenScreen = useGreenScreen;
+        if (exoPlayerView != null) {
+            exoPlayerView.setUseGreenScreen(useGreenScreen);
+            setBackgroundColor(Color.TRANSPARENT);
+            exoPlayerView.setBackgroundColor(Color.TRANSPARENT);
+
+        }
     }
 }

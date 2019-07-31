@@ -1,6 +1,7 @@
 package com.brentvatne.exoplayer;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.net.Uri;
 import android.text.TextUtils;
 
@@ -52,6 +53,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_DISABLE_FOCUS = "disableFocus";
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
+    private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
 
     @Override
     public String getName() {
@@ -224,6 +226,11 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_USE_TEXTURE_VIEW, defaultBoolean = false)
     public void setUseTextureView(final ReactExoplayerView videoView, final boolean useTextureView) {
         videoView.setUseTextureView(useTextureView);
+    }
+
+    @ReactProp(name = PROP_USE_GREEN_SCREEN)
+    public void setPropUseGreenScreen(final ReactExoplayerView videoView, boolean useGreenScreen) {
+        videoView.setUseGreenScreen(useGreenScreen);
     }
 
     @ReactProp(name = PROP_BUFFER_CONFIG)

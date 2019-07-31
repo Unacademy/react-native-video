@@ -356,6 +356,7 @@ Video.propTypes = {
   currentTime: PropTypes.number,
   progressUpdateInterval: PropTypes.number,
   useTextureView: PropTypes.bool,
+  useGreenScreen: PropTypes.bool,
   onLoadStart: PropTypes.func,
   onLoad: PropTypes.func,
   onBuffer: PropTypes.func,
