@@ -24,9 +24,9 @@ dependencies {
     }
 
     // All support libs must use the same version
-    compile "androidx.annotation:annotation:1.0.0"
-    compile "androidx.core:core:1.0.0"
-    compile "androidx.media:media:1.0.0"
+    compile "androidx.annotation:annotation:1.1.0"
+    compile "androidx.core:core:1.1.0"
+    compile "androidx.media:media:1.1.0"
 
     compile('com.google.android.exoplayer:extension-okhttp:2.8.2') {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'
