@@ -349,9 +349,8 @@ class ReactExoplayerView extends FrameLayout implements
     private void releasePlayer() {
         if (player != null) {
             updateResumePosition();
+            final SimpleExoPlayer playerOld = player;
             player = null;
-
-
             //Releasing the player in another thread since for some Android 10 devices, release is
             //blocked for more than 5 seconds creating an ANR
             Thread releaseThread = new Thread(new Runnable() {
