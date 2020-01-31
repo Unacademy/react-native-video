@@ -451,9 +451,11 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void updateResumePosition() {
-        resumeWindow = player.getCurrentWindowIndex();
-        resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
-                : C.TIME_UNSET;
+        if (player != null) {
+            resumeWindow = player.getCurrentWindowIndex();
+            resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
+                    : C.TIME_UNSET;
+        }
     }
 
     private void clearResumePosition() {
