@@ -451,6 +451,7 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void updateResumePosition() {
+        //checking for null since we call this method on player error, player might be null sometimes
         if (player != null) {
             resumeWindow = player.getCurrentWindowIndex();
             resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
