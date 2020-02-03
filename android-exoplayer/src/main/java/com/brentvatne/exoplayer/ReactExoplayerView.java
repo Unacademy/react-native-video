@@ -98,7 +98,7 @@ class ReactExoplayerView extends FrameLayout implements
     private ExoPlayerView exoPlayerView;
 
     private DataSource.Factory mediaDataSourceFactory;
-    private SimpleExoPlayer player;
+    private volatile SimpleExoPlayer player;
     private DefaultTrackSelector trackSelector;
     private boolean playerNeedsSource;
 
@@ -708,7 +708,9 @@ class ReactExoplayerView extends FrameLayout implements
         }
         //Resetting the player for an error native_flush is throwing an exception for Android 10 devices
         //when seek is called, also note that the above error only happens only for webm formats not for mp4
-        if (e.type == ExoPlaybackException.TYPE_UNEXPECTED) {
+        if (e.type == ExoPlaybackException.TYPE_UNEXPECTED
+                && e.getCause() != null
+                && e.getCause().getMessage().equals("Error 0xffffff92")) {
             initializePlayer();
         }
     }
