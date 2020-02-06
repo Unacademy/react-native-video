@@ -1040,12 +1040,13 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     public int getTrackRendererIndex(int trackType) {
-        if (player != null) {
-            int rendererCount = player.getRendererCount();
-            for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
-                if (player.getRendererType(rendererIndex) == trackType) {
-                    return rendererIndex;
-                }
+        //we are setting player as null when releasing, but actual release happens in another thread
+        //so we might get callbacks from exoplayer even if player is null. Check {@link #releasePlayer}
+        //we might need to create a handler and set null after actual release is called in Thread
+        int rendererCount = player != null ? player.getRendererCount() : 0;
+        for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
+            if (player.getRendererType(rendererIndex) == trackType) {
+                return rendererIndex;
             }
         }
         return C.INDEX_UNSET;
