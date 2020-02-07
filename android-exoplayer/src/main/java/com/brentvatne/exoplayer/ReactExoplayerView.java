@@ -551,7 +551,7 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void videoLoaded() {
-        if (loadVideoStarted) {
+        if (loadVideoStarted && player != null) {
             loadVideoStarted = false;
             setSelectedAudioTrack(audioTrackType, audioTrackValue);
             setSelectedTextTrack(textTrackType, textTrackValue);
@@ -731,7 +731,10 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     public int getTrackRendererIndex(int trackType) {
-        int rendererCount = player.getRendererCount();
+        //we are setting player as null when releasing, but actual release happens in another thread
+        //so we might get callbacks from exoplayer even if player is null. Check {@link #releasePlayer}
+        //we might need to create a handler and set null after actual release is called in Thread
+        int rendererCount = player != null ? player.getRendererCount() : 0;
         for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
             if (player.getRendererType(rendererIndex) == trackType) {
                 return rendererIndex;
