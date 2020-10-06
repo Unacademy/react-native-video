@@ -33,6 +33,7 @@ import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -47,6 +48,7 @@ import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.mediacodec.MediaCodecRenderer;
 import com.google.android.exoplayer2.mediacodec.MediaCodecUtil;
 import com.google.android.exoplayer2.metadata.Metadata;
+import com.google.android.exoplayer2.metadata.MetadataOutput;
 import com.google.android.exoplayer2.metadata.MetadataOutput;
 import com.google.android.exoplayer2.source.BehindLiveWindowException;
 import com.google.android.exoplayer2.source.MediaSource;
@@ -173,7 +175,7 @@ class ReactExoplayerView extends FrameLayout implements
                     if (player != null
                             && player.getPlaybackState() == Player.STATE_READY
                             && player.getPlayWhenReady()
-                            ) {
+                    ) {
                         long pos = player.getCurrentPosition();
                         long bufferedDuration = player.getBufferedPercentage() * player.getDuration() / 100;
                         eventEmitter.progressChanged(pos, bufferedDuration, player.getDuration(), getPositionInFirstPeriodMsForCurrentWindow(pos));
@@ -405,7 +407,7 @@ class ReactExoplayerView extends FrameLayout implements
                     ExoTrackSelection.Factory videoTrackSelectionFactory = new AdaptiveTrackSelection.Factory();
                     trackSelector = new DefaultTrackSelector(videoTrackSelectionFactory);
                     trackSelector.setParameters(trackSelector.buildUponParameters()
-                            .setMaxVideoBitrate(maxBitRate == 0 ? Integer.MAX_VALUE : maxBitRate));
+                    .setMaxVideoBitrate(maxBitRate == 0 ? Integer.MAX_VALUE : maxBitRate));
 
                     DefaultAllocator allocator = new DefaultAllocator(true, C.DEFAULT_BUFFER_SEGMENT_SIZE);
                     DefaultLoadControl.Builder defaultLoadControlBuilder = new DefaultLoadControl.Builder();
@@ -905,13 +907,13 @@ class ReactExoplayerView extends FrameLayout implements
 
         TrackGroupArray groups = info.getTrackGroups(index);
         for (int i = 0; i < groups.length; ++i) {
-             Format format = groups.get(i).getFormat(0);
-             WritableMap textTrack = Arguments.createMap();
-             textTrack.putInt("index", i);
-             textTrack.putString("title", format.id != null ? format.id : "");
-             textTrack.putString("type", format.sampleMimeType);
-             textTrack.putString("language", format.language != null ? format.language : "");
-             textTracks.pushMap(textTrack);
+            Format format = groups.get(i).getFormat(0);
+            WritableMap textTrack = Arguments.createMap();
+            textTrack.putInt("index", i);
+            textTrack.putString("title", format.id != null ? format.id : "");
+            textTrack.putString("type", format.sampleMimeType);
+            textTrack.putString("language", format.language != null ? format.language : "");
+            textTracks.pushMap(textTrack);
         }
         return textTracks;
     }

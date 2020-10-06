@@ -25,8 +25,8 @@ import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.text.Cue;
-import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.text.TextOutput;
+import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
 
@@ -270,7 +270,7 @@ public final class ExoPlayerView extends FrameLayout {
                 index = -1*index - 2;
             }
 
-             if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
                 try {
                     String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
                     long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
