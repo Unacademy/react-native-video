@@ -24,6 +24,7 @@ import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.text.Cue;
+import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
@@ -236,7 +237,7 @@ public final class ExoPlayerView extends FrameLayout {
     public void sendFileChangeEventForTime(long time) {
         Object manifest = player.getCurrentManifest();
         if (manifest instanceof HlsManifest) {
-            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null, 0, 0, time*1000, "", "", 0, 0, false);
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null,"", 0, 0, time*1000,null, "", "", 0, 0, false);
 
             int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
                 @Override
@@ -249,7 +250,7 @@ public final class ExoPlayerView extends FrameLayout {
                 index = -1*index - 2;
             }
 
-             if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
                 try {
                     String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
                     long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
@@ -276,7 +277,7 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     private final class ComponentListener implements SimpleExoPlayer.VideoListener,
-            TextRenderer.Output, ExoPlayer.EventListener {
+            TextOutput, ExoPlayer.EventListener {
 
         // TextRenderer.Output implementation
 
@@ -331,7 +332,7 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
-            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC)) {
+            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE)) {
                 sendFileChangeEventForTime();
             }
             // Do nothing.
