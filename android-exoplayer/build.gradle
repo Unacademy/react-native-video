@@ -1,4 +1,4 @@
-apply plugin: 'com.android.library'
+12apply plugin: 'com.android.library'
 
 def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
@@ -28,7 +28,7 @@ dependencies {
     compile "androidx.core:core:1.1.0"
     compile "androidx.media:media:1.1.0"
 
-    compile('com.google.android.exoplayer:extension-okhttp:2.8.2') {
+    compile('com.google.android.exoplayer:extension-okhttp:2.12.0') {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'
     }
  
