@@ -306,7 +306,6 @@ class ReactExoplayerView extends FrameLayout implements
                 HlsMediaSource hlsMediaSource =  new HlsMediaSource.Factory(
                         mediaDataSourceFactory
                 ).createMediaSource(MediaItem.fromUri(uri));
-                hlsMediaSource.addEventListener(mainHandler, null);
                 return hlsMediaSource;
             case C.TYPE_OTHER:
                 return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
