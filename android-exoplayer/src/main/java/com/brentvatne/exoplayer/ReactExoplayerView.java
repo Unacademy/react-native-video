@@ -85,7 +85,7 @@ class ReactExoplayerView extends FrameLayout implements
         ExoPlayer.EventListener,
         BecomingNoisyListener,
         AudioManager.OnAudioFocusChangeListener,
-        MetadataRenderer.Output, KeyGeneratedListener,
+        KeyGeneratedListener,
         MetadataOutput {
 
     private static final String TAG = "ReactExoplayerView";
