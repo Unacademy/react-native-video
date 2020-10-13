@@ -47,11 +47,11 @@ public class GenerateCipherKeys extends Thread {
       BufferedInputStream buf = new BufferedInputStream(new FileInputStream(file));
       buf.read(bytes, 0, bytes.length);
       buf.close();
-      String data = new String(bytes);
-      String mergedKey = new StringBuilder(new String(Base64.decode(data,Base64.DEFAULT))).reverse().toString();
+      bytes = Base64.decode(bytes,Base64.DEFAULT);
+      String mergedKey = new StringBuilder(new String(bytes,"ISO-8859-1")).reverse().toString();
       String[] keyPairs = mergedKey.split("u#~#~y");
-      SecretKeySpec key = new SecretKeySpec(keyPairs[0].getBytes(),"AES");
-      IvParameterSpec ivParams = new IvParameterSpec(keyPairs[1].getBytes());
+      SecretKeySpec key = new SecretKeySpec(keyPairs[0].getBytes("ISO-8859-1"),"AES");
+      IvParameterSpec ivParams = new IvParameterSpec(keyPairs[1].getBytes("ISO-8859-1"));
       return new SecretKeyPair(key,ivParams);
     }catch (FileNotFoundException e){
       return null;
