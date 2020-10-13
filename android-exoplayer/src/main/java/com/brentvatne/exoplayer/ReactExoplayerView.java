@@ -64,6 +64,7 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
+import java.io.File;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -73,13 +74,16 @@ import java.lang.Object;
 import java.util.ArrayList;
 import java.util.Locale;
 
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
         LifecycleEventListener,
         ExoPlayer.EventListener,
         BecomingNoisyListener,
         AudioManager.OnAudioFocusChangeListener,
-        MetadataRenderer.Output {
+        MetadataRenderer.Output, KeyGeneratedListener {
 
     private static final String TAG = "ReactExoplayerView";
 
@@ -98,7 +102,7 @@ class ReactExoplayerView extends FrameLayout implements
     private ExoPlayerView exoPlayerView;
 
     private DataSource.Factory mediaDataSourceFactory;
-    private SimpleExoPlayer player;
+    private volatile SimpleExoPlayer player;
     private DefaultTrackSelector trackSelector;
     private boolean playerNeedsSource;
 
@@ -158,7 +162,10 @@ class ReactExoplayerView extends FrameLayout implements
             }
         }
     };
-
+    private boolean areKeysInitialised = false;
+    private SecretKeySpec key;
+    private IvParameterSpec ivParam;
+    private GenerateCipherKeys keyGenerator;
     public ReactExoplayerView(ThemedReactContext context) {
         super(context);
         this.themedReactContext = context;
@@ -167,9 +174,25 @@ class ReactExoplayerView extends FrameLayout implements
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         themedReactContext.addLifecycleEventListener(this);
         audioBecomingNoisyReceiver = new AudioBecomingNoisyReceiver(themedReactContext);
-
-        initializePlayer();
+        clearKeys();
     }
+
+  private void clearKeys() {
+    key = null;
+    ivParam = null;
+  }
+
+  @Override
+  public void onKeysGenerated(SecretKeySpec key, IvParameterSpec ivParameterSpec) {
+      this.key = key;
+      this.ivParam = ivParameterSpec;
+      initializePlayer();
+  }
+
+  @Override
+  public void ifKeyNotRequired() {
+    initializePlayer();
+  }
 
 
     @Override
@@ -303,7 +326,12 @@ class ReactExoplayerView extends FrameLayout implements
             case C.TYPE_HLS:
                 return new HlsMediaSource(uri, mediaDataSourceFactory, mainHandler, null);
             case C.TYPE_OTHER:
-                return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
+
+              if(key != null && ivParam != null){
+                this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,BANDWIDTH_METER,!areKeysInitialised);
+                areKeysInitialised = true;
+              }
+              return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
                         mainHandler, null);
             default: {
                 throw new IllegalStateException("Unsupported type: " + type);
@@ -349,9 +377,28 @@ class ReactExoplayerView extends FrameLayout implements
     private void releasePlayer() {
         if (player != null) {
             updateResumePosition();
-            player.release();
-            player.setMetadataOutput(null);
+            final SimpleExoPlayer playerOld = player;
             player = null;
+            //Releasing the player in another thread since for some Android 10 devices, release is
+            //blocked for more than 5 seconds creating an ANR
+            Thread releaseThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        playerOld.release();
+                        playerOld.setMetadataOutput(null);
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
+            Thread.UncaughtExceptionHandler h = new Thread.UncaughtExceptionHandler() {
+                public void uncaughtException(Thread th, Throwable ex) {
+                    //catching exception here, can send an event to RN for logging
+                }
+            };
+            releaseThread.setUncaughtExceptionHandler(h);
+            releaseThread.start();
             trackSelector = null;
         }
         progressHandler.removeMessages(SHOW_PROGRESS);
@@ -432,9 +479,12 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void updateResumePosition() {
-        resumeWindow = player.getCurrentWindowIndex();
-        resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
-                : C.TIME_UNSET;
+        //checking for null since we call this method on player error, player might be null sometimes
+        if (player != null) {
+            resumeWindow = player.getCurrentWindowIndex();
+            resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
+                    : C.TIME_UNSET;
+        }
     }
 
     private void clearResumePosition() {
@@ -529,7 +579,7 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void videoLoaded() {
-        if (loadVideoStarted) {
+        if (loadVideoStarted && player != null) {
             loadVideoStarted = false;
             setSelectedAudioTrack(audioTrackType, audioTrackValue);
             setSelectedTextTrack(textTrackType, textTrackValue);
@@ -684,6 +734,14 @@ class ReactExoplayerView extends FrameLayout implements
         } else {
             updateResumePosition();
         }
+        //Resetting the player for an error native_flush is throwing an exception for Android 10 devices
+        //when seek is called, also note that the above error only happens only for webm formats not for mp4
+        if (e.type == ExoPlaybackException.TYPE_UNEXPECTED
+                && e.getCause() != null
+                && e.getCause().getMessage() != null
+                && e.getCause().getMessage().equals("Error 0xffffff92")) {
+            initializePlayer();
+        }
     }
 
     private static boolean isBehindLiveWindow(ExoPlaybackException e) {
@@ -701,7 +759,10 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     public int getTrackRendererIndex(int trackType) {
-        int rendererCount = player.getRendererCount();
+        //we are setting player as null when releasing, but actual release happens in another thread
+        //so we might get callbacks from exoplayer even if player is null. Check {@link #releasePlayer}
+        //we might need to create a handler and set null after actual release is called in Thread
+        int rendererCount = player != null ? player.getRendererCount() : 0;
         for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
             if (player.getRendererType(rendererIndex) == trackType) {
                 return rendererIndex;
@@ -730,6 +791,7 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isOriginalSourceNull && !isSourceEqual) {
                 reloadSource();
             }
+            startKeyGenerator();
         }
     }
 
@@ -749,7 +811,16 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isOriginalSourceNull && !isSourceEqual) {
                 reloadSource();
             }
+          startKeyGenerator();
         }
+    }
+
+    private void startKeyGenerator(){
+      String parentDir = null;
+      if(srcUri.toString().startsWith("file"))
+        parentDir = new File(srcUri.getPath()).getParent();
+      keyGenerator = new GenerateCipherKeys(parentDir,this);
+      keyGenerator.start();
     }
 
     public void setTextTracks(ReadableArray textTracks) {
@@ -984,4 +1055,5 @@ class ReactExoplayerView extends FrameLayout implements
 
         }
     }
+
 }
