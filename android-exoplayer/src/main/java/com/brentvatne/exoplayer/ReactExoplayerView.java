@@ -562,7 +562,7 @@ class ReactExoplayerView extends FrameLayout implements
             case C.TYPE_OTHER:
 
               if(key != null && ivParam != null){
-                this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,BANDWIDTH_METER,!areKeysInitialised);
+                this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,!areKeysInitialised);
                 areKeysInitialised = true;
               }
               return new ProgressiveMediaSource.Factory(
