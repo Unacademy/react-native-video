@@ -2,12 +2,10 @@ package com.brentvatne.exoplayer;
 
 import android.annotation.TargetApi;
 import android.content.Context;
-import android.graphics.Color;
-import android.support.v4.content.ContextCompat;
+
+import androidx.core.content.ContextCompat;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.Gravity;
-import android.view.Surface;
 import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
@@ -15,7 +13,6 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
 import com.brentvatne.react.GLTextureView;
-import com.brentvatne.react.VideoRenderer;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -23,11 +20,11 @@ import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
-import com.google.android.exoplayer2.source.SinglePeriodTimeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.text.Cue;
+import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
@@ -35,7 +32,6 @@ import com.google.android.exoplayer2.ui.SubtitleView;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 
 @TargetApi(16)
 public final class ExoPlayerView extends FrameLayout {
@@ -241,7 +237,7 @@ public final class ExoPlayerView extends FrameLayout {
     public void sendFileChangeEventForTime(long time) {
         Object manifest = player.getCurrentManifest();
         if (manifest instanceof HlsManifest) {
-            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null, 0, 0, time*1000, "", "", 0, 0, false);
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null,"", 0, 0, time*1000,null, "", "", 0, 0, false);
 
             int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
                 @Override
@@ -254,7 +250,7 @@ public final class ExoPlayerView extends FrameLayout {
                 index = -1*index - 2;
             }
 
-             if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+            if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
                 try {
                     String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
                     long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
@@ -281,7 +277,7 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     private final class ComponentListener implements SimpleExoPlayer.VideoListener,
-            TextRenderer.Output, ExoPlayer.EventListener {
+            TextOutput, ExoPlayer.EventListener {
 
         // TextRenderer.Output implementation
 
@@ -336,7 +332,7 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
-            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC)) {
+            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE)) {
                 sendFileChangeEventForTime();
             }
             // Do nothing.
