@@ -75,6 +75,7 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Util;
 
+import java.io.File;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -82,6 +83,9 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
+
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
@@ -91,7 +95,9 @@ class ReactExoplayerView extends FrameLayout implements
         BecomingNoisyListener,
         AudioManager.OnAudioFocusChangeListener,
         MetadataOutput,
-        DrmSessionEventListener {
+        DrmSessionEventListener,
+        KeyGeneratedListener
+{
 
     private static final String TAG = "ReactExoplayerView";
 
@@ -195,6 +201,10 @@ class ReactExoplayerView extends FrameLayout implements
         return window.windowStartTimeMs + currentPosition;
     }
 
+    private boolean areKeysInitialised = false;
+    private SecretKeySpec key;
+    private IvParameterSpec ivParam;
+    private GenerateCipherKeys keyGenerator;
     public ReactExoplayerView(ThemedReactContext context, ReactExoplayerConfig config) {
         super(context);
         this.themedReactContext = context;
@@ -207,7 +217,25 @@ class ReactExoplayerView extends FrameLayout implements
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         themedReactContext.addLifecycleEventListener(this);
         audioBecomingNoisyReceiver = new AudioBecomingNoisyReceiver(themedReactContext);
+        clearKeys();
     }
+
+  private void clearKeys() {
+    key = null;
+    ivParam = null;
+  }
+
+  @Override
+  public void onKeysGenerated(SecretKeySpec key, IvParameterSpec ivParameterSpec) {
+      this.key = key;
+      this.ivParam = ivParameterSpec;
+      initializePlayer();
+  }
+
+  @Override
+  public void ifKeyNotRequired() {
+    initializePlayer();
+  }
 
 
     @Override
@@ -532,7 +560,12 @@ class ReactExoplayerView extends FrameLayout implements
                         config.buildLoadErrorHandlingPolicy(minLoadRetryCount)
                 ).createMediaSource(MediaItem.fromUri(uri));
             case C.TYPE_OTHER:
-                return new ProgressiveMediaSource.Factory(
+
+              if(key != null && ivParam != null){
+                this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,BANDWIDTH_METER,!areKeysInitialised);
+                areKeysInitialised = true;
+              }
+              return new ProgressiveMediaSource.Factory(
                         mediaDataSourceFactory
                 ).setDrmSessionManager(drmSessionManager)
                  .setLoadErrorHandlingPolicy(
@@ -1075,6 +1108,7 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isSourceEqual) {
                 reloadSource();
             }
+            startKeyGenerator();
         }
     }
 
@@ -1108,7 +1142,16 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isSourceEqual) {
                 reloadSource();
             }
+          startKeyGenerator();
         }
+    }
+
+    private void startKeyGenerator(){
+      String parentDir = null;
+      if(srcUri.toString().startsWith("file"))
+        parentDir = new File(srcUri.getPath()).getParent();
+      keyGenerator = new GenerateCipherKeys(parentDir,this);
+      keyGenerator.start();
     }
 
     public void setTextTracks(ReadableArray textTracks) {
@@ -1446,4 +1489,5 @@ class ReactExoplayerView extends FrameLayout implements
             }
         }
     }
+
 }
