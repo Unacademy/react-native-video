@@ -19,6 +19,13 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.customview:customview:1.0.0'
+            force 'androidx.core:core:1.1.0'
+        }
+    }
 }
 
 dependencies {
