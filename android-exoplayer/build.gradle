@@ -32,14 +32,30 @@ android {
 dependencies {
     //noinspection GradleDynamicVersion
     provided "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
-    implementation(name: "exoplayer-library-smoothstreaming-release", ext: "aar")
-    implementation(name: "exoplayer-library-core-release", ext: "aar")
-    implementation(name: "exoplayer-library-ui-release", ext: "aar")
-    implementation(name: "exoplayer-library-release", ext: "aar")
-    implementation(name: "exoplayer-library-dash-release", ext: "aar")
-    implementation(name: "exoplayer-library-common-release", ext: "aar")
-    implementation(name: "exoplayer-library-extractor-release", ext: "aar")
-    implementation(name: "exoplayer-library-hls-release", ext: "aar")
+    implementation(name: "exoplayer-library-smoothstreaming-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-core-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-ui-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-dash-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-common-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-extractor-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-hls-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
     implementation(name: "exoplayer-extension-okhttp-release", ext: "aar") {
         exclude group: 'com.squareup.okhttp3', module: 'okhttp'
     }
