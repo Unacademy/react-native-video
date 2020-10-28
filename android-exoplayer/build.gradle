@@ -14,14 +14,23 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.customview:customview:1.0.0'
+            force 'androidx.core:core:1.1.0'
+        }
+    }
 }
 
 dependencies {
     //noinspection GradleDynamicVersion
     provided "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
-    compile('com.google.android.exoplayer:exoplayer:2.12.0') {
-        exclude group: 'com.android.support'
-    }
+    api project(':exoplayer-library-core')
+    api project(':exoplayer-library-dash')
+    api project(':exoplayer-library-ui')
+    api project(':exoplayer-library-hls')
+    api project(':exoplayer-library-smoothstreaming')
 
     // All support libs must use the same version
     compile "androidx.annotation:annotation:1.1.0"
