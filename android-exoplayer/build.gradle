@@ -4,6 +4,12 @@ def safeExtGet(prop, fallback) {
     rootProject.ext.has(prop) ? rootProject.ext.get(prop) : fallback
 }
 
+repositories {
+    flatDir {
+        dirs 'libs'
+    }
+}
+
 android {
     compileSdkVersion safeExtGet('compileSdkVersion', 27)
     buildToolsVersion safeExtGet('buildToolsVersion', '27.0.3')
@@ -14,23 +20,60 @@ android {
         versionCode 1
         versionName "1.0"
     }
+
+    configurations.all {
+        resolutionStrategy {
+            force 'androidx.customview:customview:1.0.0'
+            force 'androidx.core:core:1.1.0'
+        }
+    }
 }
 
 dependencies {
     //noinspection GradleDynamicVersion
     provided "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
-    compile('com.google.android.exoplayer:exoplayer:2.12.0') {
+
+
+    implementation(name: "exoplayer-library-smoothstreaming-release", ext: "aar") {
         exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-core-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-ui-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-dash-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-common-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-extractor-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-library-hls-release", ext: "aar") {
+        exclude group: 'com.android.support'
+    }
+    implementation(name: "exoplayer-extension-okhttp-release", ext: "aar") {
+        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
+    }
+    implementation(name: "exoplayer-testdata-release", ext: "aar")
+    implementation(name: "exoplayer-testutils-release", ext: "aar")
+
+    implementation ('com.google.guava:guava:27.1-android') {
+        exclude group: 'com.google.code.findbugs', module: 'jsr305'
+        exclude group: 'org.checkerframework', module: 'checker-compat-qual'
+        exclude group: 'com.google.errorprone', module: 'error_prone_annotations'
+        exclude group: 'com.google.j2objc', module: 'j2objc-annotations'
+        exclude group: 'org.codehaus.mojo', module: 'animal-sniffer-annotations'
     }
 
     // All support libs must use the same version
     compile "androidx.annotation:annotation:1.1.0"
     compile "androidx.core:core:1.1.0"
     compile "androidx.media:media:1.1.0"
-
-    compile('com.google.android.exoplayer:extension-okhttp:2.12.0') {
-        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
-    }
- 
-
 }
