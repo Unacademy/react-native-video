@@ -21,6 +21,9 @@ import javax.crypto.CipherInputStream;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+/**
+ * Created by michaeldunn on 3/13/17.
+ */
 
 public final class EncryptedDataSource implements DataSource {
 
@@ -32,7 +35,6 @@ public final class EncryptedDataSource implements DataSource {
   private Cipher mCipher;
   private SecretKeySpec mSecretKeySpec;
   private IvParameterSpec mIvParameterSpec;
-  private DataSpec dataSpec;
 
 
   public EncryptedDataSource(Cipher cipher, SecretKeySpec secretKeySpec, IvParameterSpec ivParameterSpec) {
@@ -51,8 +53,6 @@ public final class EncryptedDataSource implements DataSource {
     if (mOpened) {
       return mBytesRemaining;
     }
-    if(this.dataSpec == null)
-        this.dataSpec = dataSpec;
     mUri = dataSpec.uri;
     try {
       setupInputStream();
@@ -91,11 +91,13 @@ public final class EncryptedDataSource implements DataSource {
 
   @Override
   public int read(byte[] buffer, int offset, int readLength) throws EncryptedFileDataSourceException {
+    // fast-fail if there's 0 quantity requested or we think we've already processed everything
     if (readLength == 0) {
       return 0;
     } else if (mBytesRemaining == 0) {
       return C.RESULT_END_OF_INPUT;
     }
+    // constrain the read length and try to read from the cipher input stream
     int bytesToRead = getBytesToRead(readLength);
     int bytesRead;
     try {
@@ -103,18 +105,22 @@ public final class EncryptedDataSource implements DataSource {
     } catch (IOException e) {
       throw new EncryptedFileDataSourceException(e);
     }
+    // if we get a -1 that means we failed to read - we're either going to EOF error or broadcast EOF
     if (bytesRead == -1) {
       if (mBytesRemaining != C.LENGTH_UNSET) {
         throw new EncryptedFileDataSourceException(new EOFException());
       }
       return C.RESULT_END_OF_INPUT;
     }
+    // we can't decrement bytes remaining if it's just a flag representation (as opposed to a mutable numeric quantity)
     if (mBytesRemaining != C.LENGTH_UNSET) {
       mBytesRemaining -= bytesRead;
     }
+    // notify
     if (mTransferListener != null) {
-      mTransferListener.onBytesTransferred(this,dataSpec,false, bytesRead);
+      mTransferListener.onBytesTransferred(this,null,  false, bytesRead);
     }
+    // report
     return bytesRead;
   }
 
@@ -144,7 +150,7 @@ public final class EncryptedDataSource implements DataSource {
       if (mOpened) {
         mOpened = false;
         if (mTransferListener != null) {
-          mTransferListener.onTransferEnd(this,dataSpec,false);
+          mTransferListener.onTransferEnd(this, null, false);
         }
       }
     }
@@ -197,6 +203,7 @@ public final class EncryptedDataSource implements DataSource {
         }
         mCipher.init(Cipher.ENCRYPT_MODE, mSecretKeySpec, computedIvParameterSpecForOffset);
         byte[] skipBuffer = new byte[skip];
+        // i get that we need to update, but i don't get how we're able to take the shortcut from here to the previous comment
         mCipher.update(skipBuffer, 0, skip, skipBuffer);
         Arrays.fill(skipBuffer, (byte) 0);
       } catch (Exception e) {
@@ -205,6 +212,9 @@ public final class EncryptedDataSource implements DataSource {
       return skipped;
     }
 
+    // We need to return the available bytes from the upstream.
+    // In this implementation we're front loading it, but it's possible the value might change during the lifetime
+    // of this instance, and reference to the stream should be retained and queried for available bytes instead
     @Override
     public int available() throws IOException {
       return mUpstream.available();

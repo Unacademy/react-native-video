@@ -29,7 +29,7 @@ public class EncryptedDataSourceFactory implements DataSource.Factory {
   private Cipher getCipher(){
     try {
       Cipher cipher = Cipher.getInstance("AES/CTR/NoPadding");
-      cipher.init(Cipher.ENCRYPT_MODE, mSecretKeySpec, mIvParameterSpec);
+      cipher.init(Cipher.DECRYPT_MODE, mSecretKeySpec, mIvParameterSpec);
       return cipher;
     }catch (Exception e){
       e.printStackTrace();
