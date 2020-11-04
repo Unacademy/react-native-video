@@ -95,8 +95,7 @@ class ReactExoplayerView extends FrameLayout implements
         BecomingNoisyListener,
         AudioManager.OnAudioFocusChangeListener,
         MetadataOutput,
-        DrmSessionEventListener,
-        KeyGeneratedListener
+        DrmSessionEventListener
 {
 
     private static final String TAG = "ReactExoplayerView";
@@ -204,7 +203,6 @@ class ReactExoplayerView extends FrameLayout implements
     private boolean areKeysInitialised = false;
     private SecretKeySpec key;
     private IvParameterSpec ivParam;
-    private GenerateCipherKeys keyGenerator;
     public ReactExoplayerView(ThemedReactContext context, ReactExoplayerConfig config) {
         super(context);
         this.themedReactContext = context;
@@ -223,29 +221,6 @@ class ReactExoplayerView extends FrameLayout implements
   private void clearKeys() {
     key = null;
     ivParam = null;
-  }
-
-  @Override
-  public void onKeysGenerated(final SecretKeySpec key, final IvParameterSpec ivParameterSpec) {
-       mainHandler.post(new Runnable() {
-        @Override
-        public void run() {
-          ReactExoplayerView.this.key = key;
-          ReactExoplayerView.this.ivParam = ivParameterSpec;
-          initializePlayer();
-        }
-      });
-
-  }
-
-  @Override
-  public void ifKeyNotRequired() {
-    mainHandler.post(new Runnable() {
-        @Override
-        public void run() {
-          initializePlayer();
-        }
-      });
   }
 
 
@@ -1119,7 +1094,6 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isSourceEqual) {
                 reloadSource();
             }
-            startKeyGenerator();
         }
     }
 
@@ -1153,16 +1127,7 @@ class ReactExoplayerView extends FrameLayout implements
             if (!isSourceEqual) {
                 reloadSource();
             }
-          startKeyGenerator();
         }
-    }
-
-    private void startKeyGenerator(){
-      String parentDir = null;
-      if(srcUri.toString().startsWith("file"))
-        parentDir = new File(srcUri.getPath()).getParent();
-      keyGenerator = new GenerateCipherKeys(parentDir,this);
-      keyGenerator.start();
     }
 
     public void setTextTracks(ReadableArray textTracks) {
@@ -1501,4 +1466,12 @@ class ReactExoplayerView extends FrameLayout implements
         }
     }
 
+
+  public void setKey(SecretKeySpec key) {
+    this.key = key;
+  }
+
+  public void setIvParam(IvParameterSpec ivParam) {
+    this.ivParam = ivParam;
+  }
 }

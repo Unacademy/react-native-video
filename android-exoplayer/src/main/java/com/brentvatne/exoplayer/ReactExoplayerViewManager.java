@@ -19,12 +19,15 @@ import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.upstream.RawResourceDataSource;
 
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerView> {
 
@@ -67,6 +70,8 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
     private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
+    private static final String PROP_USE_ENCRYPTION_SECRET_KEY= "encryptionSecretKey";
+    private static final String PROP_USE_ENCRYPTION_PARAMS = "encryptionParams";
     private static final String PROP_SELECTED_VIDEO_TRACK = "selectedVideoTrack";
     private static final String PROP_SELECTED_VIDEO_TRACK_TYPE = "type";
     private static final String PROP_SELECTED_VIDEO_TRACK_VALUE = "value";
@@ -309,6 +314,32 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_USE_GREEN_SCREEN)
     public void setPropUseGreenScreen(final ReactExoplayerView videoView, boolean useGreenScreen) {
         videoView.setUseGreenScreen(useGreenScreen);
+    }
+
+    @ReactProp(name = PROP_USE_ENCRYPTION_SECRET_KEY)
+    public void setPropEncryptionSecretKey(final ReactExoplayerView videoView, String encryptionSecretKey) {
+      SecretKeySpec key = null;
+      if (encryptionSecretKey != null && !encryptionSecretKey.isEmpty()) {
+        try {
+          key = new SecretKeySpec(encryptionSecretKey.getBytes("ISO-8859-1"),"AES");
+        } catch (UnsupportedEncodingException e) {
+          key = null;
+        }
+      }
+      videoView.setKey(key);
+    }
+
+    @ReactProp(name = PROP_USE_ENCRYPTION_PARAMS)
+    public void setPropEncryptionParams(final ReactExoplayerView videoView, String encryptionParams) {
+      IvParameterSpec ivParams = null;
+      if (encryptionParams != null && !encryptionParams.isEmpty()) {
+        try {
+          ivParams = new IvParameterSpec(encryptionParams.getBytes("ISO-8859-1"));
+        } catch (UnsupportedEncodingException e) {
+          ivParams = null;
+        }
+      }
+      videoView.setIvParam(ivParams);
     }
 
     @ReactProp(name = PROP_HIDE_SHUTTER_VIEW, defaultBoolean = false)
