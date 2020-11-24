@@ -134,6 +134,7 @@ class ReactExoplayerView extends FrameLayout implements
     private String muxVideoId;
     private String muxUserId;
     private String muxVideoUrl;
+    private String muxVideoTitle;
 
     // Props from React
     private Uri srcUri;
@@ -287,7 +288,7 @@ class ReactExoplayerView extends FrameLayout implements
 
         customerPlayerData.setEnvironmentKey(muxKey);
         customerPlayerData.setViewerUserId(muxUserId);
-        customerVideoData.setVideoTitle("Android native player");
+        customerVideoData.setVideoTitle(muxVideoTitle);
         customerVideoData.setVideoSourceUrl(muxVideoUrl);
         customerVideoData.setVideoId(muxVideoId);
         if (muxStatsExoPlayer == null) {
@@ -1097,11 +1098,12 @@ class ReactExoplayerView extends FrameLayout implements
     this.ivParam = ivParam;
   }
 
-    public void setUpMux(String key, String userId, String videoId, String videoUrl) {
+    public void setUpMux(String key, String userId, String videoId, String videoUrl, String videoTitle) {
         muxKey = key;
         muxUserId = userId;
         muxVideoId = videoId;
         muxVideoUrl = videoUrl;
+        muxVideoTitle = videoTitle;
         this.releaseMux();
         this.initializeMux();
     }

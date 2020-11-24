@@ -65,6 +65,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_MUX_CONFIG_VIDEO_ID = "muxConfigVideoId";
     private static final String PROP_MUX_CONFIG_VIDEO_URL = "muxConfigVideoUrl";
     private static final String PROP_MUX_CONFIG_USER_ID = "muxConfigUserId";
+    private static final String PROP_MUX_CONFIG_VIDEO_TITLE = "muxConfigVideoTitle";
 
     @Override
     public String getName() {
@@ -296,7 +297,8 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             String videoId = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_ID) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_ID) : "";
             String videoUrl = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_URL) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_URL) : "";
             String userId = muxConfig.hasKey(PROP_MUX_CONFIG_USER_ID) ? muxConfig.getString(PROP_MUX_CONFIG_USER_ID) : "";
-            videoView.setUpMux(muxKey, userId, videoId, videoUrl);
+            String videoTitle = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_TITLE) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_TITLE) : "";
+            videoView.setUpMux(muxKey, userId, videoId, videoUrl, videoTitle);
         }
     }
 
