@@ -267,18 +267,6 @@ class ReactExoplayerView extends FrameLayout implements
         stopPlayback();
     }
 
-    private void releaseMuxPlayer() {
-      Handler releaseHandler = new Handler(Looper.getMainLooper());
-      releaseHandler.post(new Runnable() {
-        @Override
-        public void run() {
-          if (muxStatsExoPlayer != null) {
-            muxStatsExoPlayer.release();
-          }
-        }
-      });
-    }
-
     // Internal methods
 
   private void initializeMux() {
@@ -301,7 +289,10 @@ class ReactExoplayerView extends FrameLayout implements
   private void releaseMux() {
       customerPlayerData = null;
       customerVideoData = null;
-      muxStatsExoPlayer = null;
+      if (muxStatsExoPlayer != null) {
+        muxStatsExoPlayer.release();
+        muxStatsExoPlayer = null;
+      }
   }
 
     private void initializePlayer() {
