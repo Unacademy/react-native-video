@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
@@ -66,6 +67,10 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
+import com.mux.stats.sdk.core.model.CustomerPlayerData;
+import com.mux.stats.sdk.core.model.CustomerVideoData;
+import com.mux.stats.sdk.muxstats.MuxStatsExoPlayer;
+
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -117,6 +122,16 @@ class ReactExoplayerView extends FrameLayout implements
     private int maxBufferMs = DefaultLoadControl.DEFAULT_MAX_BUFFER_MS;
     private int bufferForPlaybackMs = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
     private int bufferForPlaybackAfterRebufferMs = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS;
+
+    // Mux var
+
+    private CustomerPlayerData customerPlayerData;
+    private CustomerVideoData customerVideoData;
+    private MuxStatsExoPlayer muxStatsExoPlayer;
+    private String muxKey;
+    private String muxVideoId;
+    private String muxUserId;
+    private String muxVideoUrl;
 
     // Props from React
     private Uri srcUri;
@@ -243,8 +258,42 @@ class ReactExoplayerView extends FrameLayout implements
         stopPlayback();
     }
 
+    private void releaseMuxPlayer() {
+      Handler releaseHandler = new Handler(Looper.getMainLooper());
+      releaseHandler.post(new Runnable() {
+        @Override
+        public void run() {
+          if (muxStatsExoPlayer != null) {
+            muxStatsExoPlayer.release();
+          }
+        }
+      });
+    }
 
     // Internal methods
+
+  private void initializeMux() {
+      if (this.player != null && exoPlayerView != null) {
+        customerVideoData = new CustomerVideoData();
+        customerPlayerData = new CustomerPlayerData();
+
+        customerPlayerData.setEnvironmentKey(muxKey);
+        customerPlayerData.setViewerUserId(muxUserId);
+        customerVideoData.setVideoTitle("Android native player");
+        customerVideoData.setVideoSourceUrl(muxVideoUrl);
+        customerVideoData.setVideoId(muxVideoId);
+        if (muxStatsExoPlayer == null) {
+          muxStatsExoPlayer = new MuxStatsExoPlayer(getContext(), this.player, "demo-player", customerPlayerData, customerVideoData);
+          muxStatsExoPlayer.setPlayerView(exoPlayerView);
+        }
+      }
+  }
+
+  private void releaseMux() {
+      customerPlayerData = null;
+      customerVideoData = null;
+      muxStatsExoPlayer = null;
+  }
 
     private void initializePlayer() {
         if (player == null) {
@@ -265,6 +314,9 @@ class ReactExoplayerView extends FrameLayout implements
 
             PlaybackParameters params = new PlaybackParameters(rate, 1f);
             player.setPlaybackParameters(params);
+            if (muxKey != null) {
+                this.initializeMux();
+            }
         }
         if (playerNeedsSource && srcUri != null) {
             ArrayList<MediaSource> mediaSourceList = buildTextSources();
@@ -352,6 +404,7 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void releasePlayer() {
+        this.releaseMux();
         if (player != null) {
             updateResumePosition();
             final SimpleExoPlayer playerOld = player;
@@ -1021,5 +1074,14 @@ class ReactExoplayerView extends FrameLayout implements
             exoPlayerView.setBackgroundColor(Color.TRANSPARENT);
 
         }
+    }
+
+    public void setUpMux(String key, String userId, String videoId, String videoUrl) {
+        muxKey = key;
+        muxUserId = userId;
+        muxVideoId = videoId;
+        muxVideoUrl = videoUrl;
+        this.releaseMux();
+        this.initializeMux();
     }
 }
