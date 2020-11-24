@@ -53,6 +53,10 @@ export default class Video extends Component {
     return strObj;
   }
 
+  setUpMux = (muxConfig) => {
+    this.setNativeProps({ muxConfig: muxConfig });
+  }
+
   seek = (time, tolerance = 100) => {
     if (isNaN(time)) {throw new Error('Specified time is not a number');}
 
@@ -468,6 +472,12 @@ Video.propTypes = {
     maxBufferMs: PropTypes.number,
     bufferForPlaybackMs: PropTypes.number,
     bufferForPlaybackAfterRebufferMs: PropTypes.number,
+  }),
+  muxConfig: PropTypes.shape({
+    muxConfigKey: PropTypes.string,
+    muxConfigVideoId: PropTypes.string,
+    muxConfigVideoUrl: PropTypes.string,
+    muxConfigUserId: PropTypes.number,
   }),
   stereoPan: PropTypes.number,
   rate: PropTypes.number,
