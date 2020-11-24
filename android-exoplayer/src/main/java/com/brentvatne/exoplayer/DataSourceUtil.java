@@ -12,12 +12,16 @@ import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.TransferListener;
 import com.google.android.exoplayer2.util.Util;
 
 import okhttp3.Cookie;
 import okhttp3.JavaNetCookieJar;
 import okhttp3.OkHttpClient;
 import java.util.Map;
+
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 
 public class DataSourceUtil {
@@ -27,6 +31,7 @@ public class DataSourceUtil {
 
     private static DataSource.Factory rawDataSourceFactory = null;
     private static DataSource.Factory defaultDataSourceFactory = null;
+    private static DataSource.Factory encryptedDataSourceFactory = null;
     private static String userAgent = null;
 
     public static void setUserAgent(String userAgent) {
@@ -83,5 +88,13 @@ public class DataSourceUtil {
             okHttpDataSourceFactory.getDefaultRequestProperties().set(requestHeaders);
 
         return okHttpDataSourceFactory;
+    }
+
+    public static DataSource.Factory getEncryptedDataSourceFactory(SecretKeySpec mSecretKeySpec, IvParameterSpec mIvParameterSpec,
+                                                                   boolean forceInitialisation){
+      if(encryptedDataSourceFactory == null || forceInitialisation) {
+        encryptedDataSourceFactory = new EncryptedDataSourceFactory(mSecretKeySpec,mIvParameterSpec);
+      }
+      return encryptedDataSourceFactory;
     }
 }

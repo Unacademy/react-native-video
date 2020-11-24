@@ -57,20 +57,19 @@ import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.FixedTrackSelection;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultAllocator;
 import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
-import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
 import com.mux.stats.sdk.core.model.CustomerPlayerData;
 import com.mux.stats.sdk.core.model.CustomerVideoData;
 import com.mux.stats.sdk.muxstats.MuxStatsExoPlayer;
 
+import java.io.File;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -79,6 +78,9 @@ import java.util.Map;
 import java.lang.Object;
 import java.util.ArrayList;
 import java.util.Locale;
+
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
@@ -175,7 +177,9 @@ class ReactExoplayerView extends FrameLayout implements
             }
         }
     };
-
+    private boolean areKeysInitialised = false;
+    private SecretKeySpec key;
+    private IvParameterSpec ivParam;
     public ReactExoplayerView(ThemedReactContext context) {
         super(context);
         this.themedReactContext = context;
@@ -184,9 +188,13 @@ class ReactExoplayerView extends FrameLayout implements
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         themedReactContext.addLifecycleEventListener(this);
         audioBecomingNoisyReceiver = new AudioBecomingNoisyReceiver(themedReactContext);
-
-        initializePlayer();
+        clearKeys();
     }
+
+  private void clearKeys() {
+    key = null;
+    ivParam = null;
+  }
 
 
     @Override
@@ -360,7 +368,12 @@ class ReactExoplayerView extends FrameLayout implements
                 ).createMediaSource(MediaItem.fromUri(uri));
                 return hlsMediaSource;
             case C.TYPE_OTHER:
-                return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
+
+              if(key != null && ivParam != null){
+                this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,!areKeysInitialised);
+                areKeysInitialised = true;
+              }
+              return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
                         mainHandler, null);
             default: {
                 throw new IllegalStateException("Unsupported type: " + type);
@@ -1075,6 +1088,14 @@ class ReactExoplayerView extends FrameLayout implements
 
         }
     }
+
+  public void setKey(SecretKeySpec key) {
+    this.key = key;
+  }
+
+  public void setIvParam(IvParameterSpec ivParam) {
+    this.ivParam = ivParam;
+  }
 
     public void setUpMux(String key, String userId, String videoId, String videoUrl) {
         muxKey = key;

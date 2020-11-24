@@ -367,6 +367,8 @@ Video.propTypes = {
   progressUpdateInterval: PropTypes.number,
   useTextureView: PropTypes.bool,
   useGreenScreen: PropTypes.bool,
+  encryptionSecretKey: PropTypes.string,
+  encryptionParams: PropTypes.string,
   onLoadStart: PropTypes.func,
   onLoad: PropTypes.func,
   onBuffer: PropTypes.func,
