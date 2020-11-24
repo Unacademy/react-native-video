@@ -7,7 +7,6 @@ import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
-import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.Log;
