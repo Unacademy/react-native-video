@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.net.Uri;
 import android.text.TextUtils;
+import android.util.Log;
 
 import com.facebook.react.bridge.Dynamic;
 import com.facebook.react.bridge.ReadableArray;
@@ -59,6 +60,12 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
     private static final String PROP_USE_ENCRYPTION_SECRET_KEY= "encryptionSecretKey";
     private static final String PROP_USE_ENCRYPTION_PARAMS = "encryptionParams";
+    private static final String PROP_MUX_CONFIG = "muxConfig";
+    private static final String PROP_MUX_CONFIG_KEY = "muxConfigKey";
+    private static final String PROP_MUX_CONFIG_VIDEO_ID = "muxConfigVideoId";
+    private static final String PROP_MUX_CONFIG_VIDEO_URL = "muxConfigVideoUrl";
+    private static final String PROP_MUX_CONFIG_USER_ID = "muxConfigUserId";
+    private static final String PROP_MUX_CONFIG_VIDEO_TITLE = "muxConfigVideoTitle";
 
     @Override
     public String getName() {
@@ -280,6 +287,18 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             bufferForPlaybackAfterRebufferMs = bufferConfig.hasKey(PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS)
                     ? bufferConfig.getInt(PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS) : bufferForPlaybackAfterRebufferMs;
             videoView.setBufferConfig(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs);
+        }
+    }
+
+    @ReactProp(name = PROP_MUX_CONFIG)
+    public void setMuxConfig(final ReactExoplayerView videoView, @Nullable ReadableMap muxConfig) {
+        if (muxConfig != null) {
+            String muxKey = muxConfig.hasKey(PROP_MUX_CONFIG_KEY) ? muxConfig.getString(PROP_MUX_CONFIG_KEY) : "";
+            String videoId = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_ID) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_ID) : "";
+            String videoUrl = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_URL) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_URL) : "";
+            String userId = muxConfig.hasKey(PROP_MUX_CONFIG_USER_ID) ? muxConfig.getString(PROP_MUX_CONFIG_USER_ID) : "";
+            String videoTitle = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_TITLE) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_TITLE) : "";
+            videoView.setUpMux(muxKey, userId, videoId, videoUrl, videoTitle);
         }
     }
 
