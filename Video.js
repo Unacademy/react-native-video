@@ -50,6 +50,10 @@ export default class Video extends Component {
     return strObj;
   }
 
+  setUpMux = (muxConfig) => {
+    this.setNativeProps({ muxConfig: muxConfig });
+  }
+
   seek = (time, tolerance = 100) => {
     if (Platform.OS === 'ios') {
       this.setNativeProps({
@@ -345,6 +349,13 @@ Video.propTypes = {
     bufferForPlaybackMs: PropTypes.number,
     bufferForPlaybackAfterRebufferMs: PropTypes.number,
   }),
+  muxConfig: PropTypes.shape({
+    muxConfigKey: PropTypes.string,
+    muxConfigVideoId: PropTypes.string,
+    muxConfigVideoUrl: PropTypes.string,
+    muxConfigUserId: PropTypes.string,
+    muxConfigVideoTitle: PropTypes.string,
+  }),
   stereoPan: PropTypes.number,
   rate: PropTypes.number,
   playInBackground: PropTypes.bool,
@@ -357,6 +368,8 @@ Video.propTypes = {
   progressUpdateInterval: PropTypes.number,
   useTextureView: PropTypes.bool,
   useGreenScreen: PropTypes.bool,
+  encryptionSecretKey: PropTypes.string,
+  encryptionParams: PropTypes.string,
   onLoadStart: PropTypes.func,
   onLoad: PropTypes.func,
   onBuffer: PropTypes.func,

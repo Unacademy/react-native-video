@@ -63,6 +63,7 @@ dependencies {
     }
     implementation(name: "exoplayer-testdata-release", ext: "aar")
     implementation(name: "exoplayer-testutils-release", ext: "aar")
+    implementation files('libs/mux.aar')
 
     implementation ('com.google.guava:guava:27.1-android') {
         exclude group: 'com.google.code.findbugs', module: 'jsr305'
