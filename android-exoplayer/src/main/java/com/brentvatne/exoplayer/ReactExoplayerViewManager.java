@@ -75,6 +75,8 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_MUX_CONFIG_VIDEO_ID = "muxConfigVideoId";
     private static final String PROP_MUX_CONFIG_VIDEO_URL = "muxConfigVideoUrl";
     private static final String PROP_MUX_CONFIG_USER_ID = "muxConfigUserId";
+    private static final String PROP_MUX_CONFIG_VIDEO_TITLE = "muxConfigVideoTitle";
+    private static final String PROP_FORCE_RELOAD = "forceReload";
     private static final String PROP_SELECTED_VIDEO_TRACK = "selectedVideoTrack";
     private static final String PROP_SELECTED_VIDEO_TRACK_TYPE = "type";
     private static final String PROP_SELECTED_VIDEO_TRACK_VALUE = "value";
@@ -383,6 +385,11 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             String userId = muxConfig.hasKey(PROP_MUX_CONFIG_USER_ID) ? muxConfig.getString(PROP_MUX_CONFIG_USER_ID) : "";
             videoView.setUpMux(muxKey, userId, videoId, videoUrl);
         }
+    }
+
+    @ReactProp(name = PROP_FORCE_RELOAD, defaultBoolean = true)
+    public void setForceReload(final ReactExoplayerView videoView, boolean reload) {
+        videoView.reloadSource();
     }
 
     private boolean startsWithValidScheme(String uriString) {
