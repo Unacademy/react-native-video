@@ -75,6 +75,14 @@ export default class Video extends Component {
     this.setNativeProps({ fullscreen: false });
   };
 
+  forceReload = () => {
+    if (Platform.OS === 'ios') {
+	  // TODO iOS
+    } else {
+      this.setNativeProps({ forceReload: true });
+    }
+  }
+
   _assignRoot = (component) => {
     this._root = component;
   };
@@ -403,5 +411,6 @@ const RCTVideo = requireNativeComponent('RCTVideo', Video, {
     src: true,
     seek: true,
     fullscreen: true,
+    forceReload: true
   },
 });
