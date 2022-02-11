@@ -1,5 +1,8 @@
 #import <AVFoundation/AVFoundation.h>
 #import "AVKit/AVKit.h"
+#import "MetalKit/MetalKit.h"
+#import "Metal/MTLCommandQueue.h"
+#import "Metal/MTLCommandBuffer.h"
 #import "UIView+FindUIViewController.h"
 #import "RCTVideoPlayerViewController.h"
 #import "RCTVideoPlayerViewControllerDelegate.h"
@@ -14,11 +17,12 @@
 
 @class RCTEventDispatcher;
 #if __has_include(<react-native-video/RCTVideoCache.h>)
-@interface RCTVideo : UIView <RCTVideoPlayerViewControllerDelegate, DVAssetLoaderDelegatesDelegate, AVAssetResourceLoaderDelegate>
+@interface RCTVideo : MTKView <RCTVideoPlayerViewControllerDelegate, DVAssetLoaderDelegatesDelegate, AVAssetResourceLoaderDelegate>
 #elif TARGET_OS_TV
 @interface RCTVideo : UIView <RCTVideoPlayerViewControllerDelegate, AVAssetResourceLoaderDelegate>
 #else
-@interface RCTVideo : UIView <RCTVideoPlayerViewControllerDelegate, AVPictureInPictureControllerDelegate, AVAssetResourceLoaderDelegate>
+API_AVAILABLE(ios(9.0))
+@interface RCTVideo : MTKView <RCTVideoPlayerViewControllerDelegate, AVPictureInPictureControllerDelegate, AVAssetResourceLoaderDelegate>
 #endif
 
 @property (nonatomic, copy) RCTDirectEventBlock onVideoLoadStart;
@@ -43,6 +47,7 @@
 @property (nonatomic, copy) RCTDirectEventBlock onPictureInPictureStatusChanged;
 @property (nonatomic, copy) RCTDirectEventBlock onRestoreUserInterfaceForPictureInPictureStop;
 @property (nonatomic, copy) RCTDirectEventBlock onGetLicense;
+@property (nonatomic, copy) CIImage* image;
 
 typedef NS_ENUM(NSInteger, RCTVideoError) {
     RCTVideoErrorFromJSPart,
