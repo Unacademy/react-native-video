@@ -1,6 +1,9 @@
 #import <React/RCTView.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AVKit/AVKit.h"
+#import "MetalKit/MetalKit.h"
+#import "Metal/MTLCommandQueue.h"
+#import "Metal/MTLCommandBuffer.h"
 #import "UIView+FindUIViewController.h"
 #import "RCTVideoPlayerViewController.h"
 #import "RCTVideoPlayerViewControllerDelegate.h"
@@ -13,9 +16,10 @@
 
 @class RCTEventDispatcher;
 #if __has_include(<react-native-video/RCTVideoCache.h>)
-@interface RCTVideo : UIView <RCTVideoPlayerViewControllerDelegate, DVAssetLoaderDelegatesDelegate>
+@interface RCTVideo : MTKView <RCTVideoPlayerViewControllerDelegate, DVAssetLoaderDelegatesDelegate>
 #else
-@interface RCTVideo : UIView <RCTVideoPlayerViewControllerDelegate>
+API_AVAILABLE(ios(9.0))
+@interface RCTVideo : MTKView <RCTVideoPlayerViewControllerDelegate>
 #endif
 
 @property (nonatomic, copy) RCTBubblingEventBlock onVideoLoadStart;
@@ -35,6 +39,7 @@
 @property (nonatomic, copy) RCTBubblingEventBlock onPlaybackStalled;
 @property (nonatomic, copy) RCTBubblingEventBlock onPlaybackResume;
 @property (nonatomic, copy) RCTBubblingEventBlock onPlaybackRateChange;
+@property (nonatomic, copy) CIImage* image;
 
 - (instancetype)initWithEventDispatcher:(RCTEventDispatcher *)eventDispatcher NS_DESIGNATED_INITIALIZER;
 
