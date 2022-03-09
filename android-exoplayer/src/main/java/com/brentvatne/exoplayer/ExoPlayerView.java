@@ -11,6 +11,7 @@ import android.widget.FrameLayout;
 
 import com.brentvatne.react.ChromaRenderer;
 import com.brentvatne.react.ChromaSurfaceView;
+import com.brentvatne.react.GLTextureView;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -103,7 +104,11 @@ public final class ExoPlayerView extends FrameLayout {
     private void updateSurfaceView() {
         final View view;
         if (useGreenScreen) {
-            view = new ChromaSurfaceView(context);
+            if (useTextureView) {
+                view = new GLTextureView(context);
+            } else {
+                view = new ChromaSurfaceView(context);
+            }
         } else {
             view = useTextureView ? new TextureView(context) : new SurfaceView(context);
         }
@@ -114,7 +119,21 @@ public final class ExoPlayerView extends FrameLayout {
             layout.removeViewAt(0);
         }
         layout.addView(surfaceView, 0, layoutParams);
-        if (view instanceof ChromaSurfaceView) {
+        if (view instanceof GLTextureView) {
+            GLTextureView glTextureView = (GLTextureView) view;
+            glTextureView.setOpaque(false);
+            glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
+                @Override
+                public void onSurfaceCreated() {
+                    if (ExoPlayerView.this.player != null) {
+                        setVideoView();
+                        player.setVideoListener(componentListener);
+                        player.addListener(componentListener);
+                        player.setTextOutput(componentListener);
+                    }
+                }
+            });
+        } else if (view instanceof ChromaSurfaceView) {
             final ChromaSurfaceView chromeView = (ChromaSurfaceView)view;
             chromeView.setOnSurfacePrepareListener(new ChromaRenderer.OnSurfacePrepareListener() {
                 @Override
