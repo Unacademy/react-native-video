@@ -4,15 +4,13 @@ import android.annotation.TargetApi;
 import android.content.Context;
 
 import androidx.core.content.ContextCompat;
+
 import android.util.AttributeSet;
-import android.view.Gravity;
-import android.view.SurfaceView;
-import android.view.TextureView;
-import android.view.View;
-import android.view.ViewGroup;
+import android.view.*;
 import android.widget.FrameLayout;
 
-import com.brentvatne.react.GLTextureView;
+import com.brentvatne.react.ChromaRenderer;
+import com.brentvatne.react.ChromaSurfaceView;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -25,7 +23,6 @@ import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.text.Cue;
 import com.google.android.exoplayer2.text.TextOutput;
-import com.google.android.exoplayer2.text.TextRenderer;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
 
@@ -104,9 +101,9 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     private void updateSurfaceView() {
-        View view;
+        final View view;
         if (useGreenScreen) {
-            view = new GLTextureView(context);
+            view = new ChromaSurfaceView(context);
         } else {
             view = useTextureView ? new TextureView(context) : new SurfaceView(context);
         }
@@ -117,14 +114,13 @@ public final class ExoPlayerView extends FrameLayout {
             layout.removeViewAt(0);
         }
         layout.addView(surfaceView, 0, layoutParams);
-        if (view instanceof GLTextureView) {
-            GLTextureView glTextureView = (GLTextureView) view;
-            glTextureView.setOpaque(false);
-            glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
+        if (view instanceof ChromaSurfaceView) {
+            final ChromaSurfaceView chromeView = (ChromaSurfaceView)view;
+            chromeView.setOnSurfacePrepareListener(new ChromaRenderer.OnSurfacePrepareListener() {
                 @Override
-                public void onSurfaceCreated() {
-                    if (ExoPlayerView.this.player != null) {
-                        setVideoView();
+                public void surfacePrepared(final Surface surface) {
+                    if (player != null) {
+                        player.setVideoSurface(surface);
                         player.setVideoListener(componentListener);
                         player.addListener(componentListener);
                         player.setTextOutput(componentListener);
