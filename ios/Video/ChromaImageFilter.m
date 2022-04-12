@@ -38,8 +38,12 @@ static const char kI420FragmentShaderSource[] =
 @implementation ChromaImageFilter
 
 + (CIColorKernel *) kernel {
-//    return [CIColorKernel kernelWithString:@"kernel vec4 alphaFrame(__sample s) {\nreturn vec4( s.rgb, 1.0 );\n}"];
-    return [CIColorKernel kernelWithString:[NSString stringWithCString:kI420FragmentShaderSource encoding:NSASCIIStringEncoding]];
+    static CIColorKernel *kernel;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        kernel = [CIColorKernel kernelWithString:[NSString stringWithCString:kI420FragmentShaderSource encoding:NSASCIIStringEncoding]];
+    });
+    return kernel;
 }
 
 @synthesize inputImage;
@@ -47,15 +51,13 @@ static const char kI420FragmentShaderSource[] =
 
 - (CIImage *) outputImage
 {
-    CIColorKernel *kernel = [ChromaImageFilter kernel];
-    
-//    if (!inputImage || !maskImage) {
-//        return nil;
-//    }
+    if (!inputImage) {
+        return nil;
+    }
     
     NSArray *args = [NSArray arrayWithObjects:(id)inputImage, nil];
     
-    return [kernel applyWithExtent:inputImage.extent arguments:args];
+    return [self.class.kernel applyWithExtent:inputImage.extent arguments:args];
 }
 
 @end
