@@ -36,7 +36,7 @@ static int const RCTVideoUnset = -1;
   AVPlayerLayer *_playerLayer;
   BOOL _playerLayerObserverSet;
   RCTVideoPlayerViewController *_playerViewController;
-  NSURL *_videoURL;
+  ChromaImageFilter *chromaFilter;NSURL *_videoURL;
   BOOL _useGreenScreen;
   int _frameRate;
   BOOL _requestingCertificate;
@@ -139,12 +139,12 @@ static int const RCTVideoUnset = -1;
                                              selector:@selector(applicationWillResignActive:)
                                                  name:UIApplicationWillResignActiveNotification
                                                object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(applicationDidEnterBackground:)
                                                  name:UIApplicationDidEnterBackgroundNotification
                                                object:nil];
-    
+
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(applicationWillEnterForeground:)
                                                  name:UIApplicationWillEnterForegroundNotification
@@ -155,7 +155,7 @@ static int const RCTVideoUnset = -1;
                                                  name:AVAudioSessionRouteChangeNotification
                                                object:nil];
   }
-  
+
   return self;
 }
 
@@ -418,16 +418,21 @@ static int const RCTVideoUnset = -1;
 }
 
 - (void)displayLinkUpdated: (CADisplayLink *)link {
-    CMTime time = [_videoOutput itemTimeForHostTime: CACurrentMediaTime() ];
+    CFTimeInterval nextOutputTime = [link timestamp] + [link duration];
+    CMTime time = [_videoOutput itemTimeForHostTime: nextOutputTime ];
+
     if ([_videoOutput hasNewPixelBufferForItemTime:time]) {
-        CVPixelBufferRef *pixBuf = [_videoOutput copyPixelBufferForItemTime:time itemTimeForDisplay:nil];
+        CVPixelBufferRef *pixBuf = [_videoOutput copyPixelBufferForItemTime:time itemTimeForDisplay: nil];
         CIImage *baseImage = [CIImage imageWithCVImageBuffer:pixBuf];
 
         if (_useGreenScreen) {
-            ChromaImageFilter *chromaFilter = [[ChromaImageFilter alloc] init];
+            if (!chromaFilter) {
+                chromaFilter = [[ChromaImageFilter alloc] init];
+            }
             [chromaFilter setValue:baseImage forKey:kCIInputImageKey];
-
             _image = chromaFilter.outputImage;
+
+            CVBufferRelease(pixBuf);
         } else {
             _image = baseImage;
         }
@@ -1575,14 +1580,14 @@ static int const RCTVideoUnset = -1;
       NSMutableDictionary *dict = [NSMutableDictionary dictionary];
       [dict setObject:[NSNumber numberWithUnsignedInt:kCVPixelFormatType_32BGRA] forKey:(NSString *)kCVPixelBufferPixelFormatTypeKey];
       _playerLayer.pixelBufferAttributes = dict;
-      
-    
+
+
     // to prevent video from being animated when resizeMode is 'cover'
     // resize mode must be set before layer is added
     [self setResizeMode:_resizeMode];
     [_playerLayer addObserver:self forKeyPath:readyForDisplayKeyPath options:NSKeyValueObservingOptionNew context:nil];
     _playerLayerObserverSet = YES;
-    
+
     [self.layer addSublayer:_playerLayer];
     self.layer.needsDisplayOnBoundsChange = YES;
     #if TARGET_OS_IOS
@@ -1770,6 +1775,8 @@ static int const RCTVideoUnset = -1;
   [self removePlayerLayer];
   [self removePlayerOutput];
     [self stopDisplayLink];
+
+    chromaFilter = nil;
 
     [_playerViewController.contentOverlayView removeObserver:self forKeyPath:@"frame"];
   [_playerViewController removeObserver:self forKeyPath:readyForDisplayKeyPath];
