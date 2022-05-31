@@ -38,7 +38,7 @@ static int const RCTVideoUnset = -1;
   RCTVideoPlayerViewController *_playerViewController;
   ChromaImageFilter *chromaFilter;NSURL *_videoURL;
   BOOL _useGreenScreen;
-  int _frameRate;
+  BOOL _shouldDrawImage;
   BOOL _requestingCertificate;
   BOOL _requestingCertificateErrored;
 
@@ -126,7 +126,7 @@ static int const RCTVideoUnset = -1;
     _pictureInPicture = false;
     _ignoreSilentSwitch = @"inherit"; // inherit, ignore, obey
     _mixWithOthers = @"inherit"; // inherit, mix, duck
-
+_shouldDrawImage = false;
     [self setUpMTKViewUtils];
 
 #if TARGET_OS_IOS
@@ -177,9 +177,7 @@ static int const RCTVideoUnset = -1;
     self.device = MTLCreateSystemDefaultDevice();
     _ciContext = [CIContext contextWithMTLDevice: self.device];
     self.framebufferOnly = false;
-    [self setPaused:YES];
     self.enableSetNeedsDisplay = false;
-    _frameRate = 30;
 
     //Set backgroundcolor as clear
     self.backgroundColor = [UIColor clearColor];
@@ -393,13 +391,15 @@ static int const RCTVideoUnset = -1;
 - (void) setImage:(CIImage *)image {
     if (_image != image) {
         _image = image;
-        [self draw];
+        _shouldDrawImage = true;
+        //        [self draw];
     }
 }
 
 - (void) drawRect:(CGRect)rect {
     id<MTLCommandQueue> commandQueue =  [self.device newCommandQueue];
-    if (_image && commandQueue && self.currentDrawable) {
+    if (_image && commandQueue && self.currentDrawable && _shouldDrawImage) {
+        _shouldDrawImage = false;
         id<MTLCommandBuffer> commandBuffer = [commandQueue commandBuffer];
         MDLTexture* texture = self.currentDrawable.texture;
         CGRect drawingBounds = CGRectMake(CGPointZero.x, CGPointZero.y, self.drawableSize.width, self.drawableSize.height);
@@ -430,8 +430,7 @@ static int const RCTVideoUnset = -1;
                 chromaFilter = [[ChromaImageFilter alloc] init];
             }
             [chromaFilter setValue:baseImage forKey:kCIInputImageKey];
-            _image = chromaFilter.outputImage;
-
+            self.image = chromaFilter.outputImage;
             CVBufferRelease(pixBuf);
         } else {
             _image = baseImage;
@@ -441,11 +440,6 @@ static int const RCTVideoUnset = -1;
 
 - (void)setUpDisplayLink {
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkUpdated:)];
-    if (@available(iOS 10.0, *)) {
-        _displayLink.preferredFramesPerSecond = _frameRate;
-    } else {
-        // Fallback on earlier versions
-    };
     [_displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 
@@ -975,13 +969,9 @@ static int const RCTVideoUnset = -1;
 #pragma mark - Prop setters
 
 - (void)setUseGreenScreen:(BOOL)useGreenScreen {
-        if (_useGreenScreen != useGreenScreen) {
-            _useGreenScreen = useGreenScreen;
-        }
-}
-
-- (void)setFrameRate:(int)frameRate {
-    _frameRate = frameRate;
+    if (_useGreenScreen != useGreenScreen) {
+        _useGreenScreen = useGreenScreen;
+    }
 }
 
 - (void)setResizeMode:(NSString*)mode
@@ -1082,13 +1072,14 @@ static int const RCTVideoUnset = -1;
     if (@available(iOS 10.0, *) && !_automaticallyWaitsToMinimizeStalling) {
             [_player playImmediatelyAtRate:_rate];
     } else {
-      [_player play];
+      [_player playImmediatelyAtRate:_rate];
       [_player setRate:_rate];
     }
         [_player setRate:_rate];
     }
 
     _paused = paused;
+
 }
 
 - (float)getCurrentTime
@@ -1137,7 +1128,6 @@ static int const RCTVideoUnset = -1;
                                        @"target": self.reactTag});
                 }
             }];
-
             _pendingSeek = false;
         }
 
