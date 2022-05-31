@@ -440,6 +440,9 @@ _shouldDrawImage = false;
 
 - (void)setUpDisplayLink {
     _displayLink = [CADisplayLink displayLinkWithTarget:self selector:@selector(displayLinkUpdated:)];
+    if (@available(iOS 10.0, *)) {
+        _displayLink.preferredFramesPerSecond = 30;
+    }
     [_displayLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 }
 
