@@ -135,6 +135,7 @@ class ReactExoplayerView extends FrameLayout implements
     private boolean isBuffering;
     private boolean muted = false;
     private boolean hasAudioFocus = false;
+    private boolean isEncrypted;
     private float rate = 1f;
     private float audioVolume = 1f;
     private int minLoadRetryCount = 3;
@@ -592,7 +593,9 @@ class ReactExoplayerView extends FrameLayout implements
                 if (key != null && ivParam != null) {
                     this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key, ivParam, !areKeysInitialised);
                     areKeysInitialised = true;
-                }
+                } else if(isEncrypted){
+                  this.mediaDataSourceFactory = new EncryptedFileDataSourceFactory(themedReactContext);
+              }
                 return new ProgressiveMediaSource.Factory(
                         mediaDataSourceFactory
                 ).setDrmSessionManager(drmSessionManager)
@@ -1110,10 +1113,23 @@ class ReactExoplayerView extends FrameLayout implements
 
     public void setSrc(final Uri uri, final String extension, Map<String, String> headers) {
         if (uri != null) {
-            boolean isOriginalSourceNull = srcUri == null;
-            boolean isSourceEqual = uri.equals(srcUri);
+            isEncrypted = false;
+            File srcFile = new File(uri.getPath());
 
-            this.srcUri = uri;
+            if(!srcFile.getName().startsWith("encrypted_")){
+                File encryptedFile = new File(uri.getPath().replace(srcFile.getName(), "encrypted_"+srcFile.getName()));
+                if(encryptedFile.exists()){
+                    srcFile = encryptedFile;
+                }
+            }
+            Uri updatedUri = Uri.parse(srcFile.getAbsolutePath());
+            if(updatedUri.getLastPathSegment().startsWith("encrypted_")){
+                isEncrypted = true;
+            }
+            boolean isOriginalSourceNull = srcUri == null;
+            boolean isSourceEqual = updatedUri.equals(srcUri);
+
+            this.srcUri = updatedUri;
             this.extension = extension;
             this.requestHeaders = headers;
             this.mediaDataSourceFactory =
