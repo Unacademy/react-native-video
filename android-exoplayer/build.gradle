@@ -75,7 +75,7 @@ dependencies {
     }
 
     // All support libs must use the same version
-    compile "androidx.annotation:annotation:1.1.0"
-    compile "androidx.core:core:1.1.0"
-    compile "androidx.media:media:1.1.0"
+    implementation "androidx.annotation:annotation:1.1.0"
+    implementation "androidx.core:core:1.1.0"
+    implementation "androidx.media:media:1.1.0"
 }
