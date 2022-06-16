@@ -117,7 +117,6 @@ class ReactExoplayerView extends FrameLayout implements
     private boolean isInBackground;
     private boolean isPaused;
     private boolean isBuffering;
-    private boolean isEncrypted;
     private float rate = 1f;
 
     private int minBufferMs = DefaultLoadControl.DEFAULT_MIN_BUFFER_MS;
@@ -369,8 +368,6 @@ class ReactExoplayerView extends FrameLayout implements
               if(key != null && ivParam != null){
                 this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key,ivParam,!areKeysInitialised);
                 areKeysInitialised = true;
-              } else if(isEncrypted){
-                  this.mediaDataSourceFactory = new EncryptedFileDataSourceFactory(themedReactContext);
               }
               return new ExtractorMediaSource(uri, mediaDataSourceFactory, new DefaultExtractorsFactory(),
                         mainHandler, null);
@@ -823,23 +820,10 @@ class ReactExoplayerView extends FrameLayout implements
 
     public void setSrc(final Uri uri, final String extension, Map<String, String> headers) {
         if (uri != null) {
-            isEncrypted = false;
-            File srcFile = new File(uri.getPath());
-
-            if(!srcFile.getName().startsWith("encrypted_")){
-                File encryptedFile = new File(uri.getPath().replace(srcFile.getName(), "encrypted_"+srcFile.getName()));
-                if(encryptedFile.exists()){
-                    srcFile = encryptedFile;
-                }
-            }
-            Uri updatedUri = Uri.parse(srcFile.getAbsolutePath());
-            if(updatedUri.getLastPathSegment().startsWith("encrypted_")){
-                isEncrypted = true;
-            }
             boolean isOriginalSourceNull = srcUri == null;
-            boolean isSourceEqual = updatedUri.equals(srcUri);
+            boolean isSourceEqual = uri.equals(srcUri);
 
-            this.srcUri = updatedUri;
+            this.srcUri = uri;
             this.extension = extension;
             this.requestHeaders = headers;
             this.mediaDataSourceFactory = DataSourceUtil.getDefaultDataSourceFactory(this.themedReactContext, BANDWIDTH_METER, this.requestHeaders);

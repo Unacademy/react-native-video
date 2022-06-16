@@ -32,7 +32,6 @@ android {
 dependencies {
     //noinspection GradleDynamicVersion
     compileOnly "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
-    implementation "androidx.security:security-crypto:1.1.0-alpha03"
 
     implementation(name: "exoplayer-library-smoothstreaming-release", ext: "aar") {
         exclude group: 'com.android.support'
