@@ -31,7 +31,7 @@ android {
 
 dependencies {
     //noinspection GradleDynamicVersion
-    provided "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
+    compileOnly "com.facebook.react:react-native:${safeExtGet('reactNativeVersion', '+')}"
     implementation "androidx.security:security-crypto:1.1.0-alpha03"
 
     implementation(name: "exoplayer-library-smoothstreaming-release", ext: "aar") {
@@ -75,7 +75,7 @@ dependencies {
     }
 
     // All support libs must use the same version
-    compile "androidx.annotation:annotation:1.1.0"
-    compile "androidx.core:core:1.1.0"
-    compile "androidx.media:media:1.1.0"
+    implementation "androidx.annotation:annotation:1.1.0"
+    implementation "androidx.core:core:1.1.0"
+    implementation "androidx.media:media:1.1.0"
 }
