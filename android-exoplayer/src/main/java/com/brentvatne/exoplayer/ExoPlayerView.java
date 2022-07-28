@@ -16,7 +16,10 @@ import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.PlaybackParameters;
+import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.source.hls.HlsManifest;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
 import com.google.android.exoplayer2.video.VideoListener;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
@@ -26,6 +29,9 @@ import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 @TargetApi(16)
@@ -42,6 +48,8 @@ public final class ExoPlayerView extends FrameLayout {
 
     private boolean useTextureView = true;
     private boolean hideShutterView = false;
+
+    private ManifestFileChangeListener manifestFileChangeListener;
 
     public ExoPlayerView(Context context) {
         this(context, null);
@@ -100,6 +108,72 @@ public final class ExoPlayerView extends FrameLayout {
         } else if (surfaceView instanceof SurfaceView) {
             player.setVideoSurfaceView((SurfaceView) surfaceView);
         }
+    }
+
+    public void setManifestFileChangeListener(ManifestFileChangeListener listener) {
+        this.manifestFileChangeListener = listener;
+    }
+
+    private int comparatorLong(long x, long y) {
+        if(x == y) {
+            return 0;
+        }
+
+        return x < y ? -1 : 1;
+    }
+
+    private void onManifestFileChange(long time) {
+        Object manifest = player.getCurrentManifest();
+        if(manifest instanceof HlsManifest) {
+            List<HlsMediaPlaylist.Part> list = new ArrayList();
+
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment(
+                    "",
+                    null,
+                    "",
+                    0,
+                    0,
+                    time * 1000,
+                    null,
+                    "",
+                    "",
+                    0,
+                    0,
+                    false,
+                    list
+            );
+
+            int index = Collections.binarySearch(
+                    ((HlsManifest) manifest).mediaPlaylist.segments,
+                    segment,
+                    (s1, s2) -> comparatorLong(s1.relativeStartTimeUs, s2.relativeStartTimeUs)
+            );
+
+            if(index < 0) {
+                index = -1 * index - 2;
+            }
+
+            if(index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
+                try {
+                    String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
+                    long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
+                    long closestStartTimeUs = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs;
+                    if(manifestFileChangeListener != null) {
+                        try {
+                            manifestFileChangeListener.onManifestFileChange(
+                                    Long.toString(val),
+                                    closestStartTimeUs,
+                                    ((HlsManifest) manifest).mediaPlaylist.durationUs
+                            );
+                        } catch (Exception ignore) {}
+                    }
+                } catch (Exception e) {}
+            }
+        }
+    }
+
+    private void onManifestFileChange() {
+        onManifestFileChange(player.getCurrentPosition());
     }
 
     private void updateSurfaceView() {
@@ -246,11 +320,13 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onLoadingChanged(boolean isLoading) {
+            onManifestFileChange();
             // Do nothing.
         }
 
         @Override
         public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
+            onManifestFileChange();
             // Do nothing.
         }
 
@@ -261,11 +337,15 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onPositionDiscontinuity(int reason) {
+            onManifestFileChange();
             // Do nothing.
         }
 
         @Override
         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
+            if(manifest instanceof HlsManifest && reason == 2) {
+                onManifestFileChange();
+            }
             // Do nothing.
         }
 
@@ -276,11 +356,13 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onPlaybackParametersChanged(PlaybackParameters params) {
+            onManifestFileChange();
             // Do nothing
         }
 
         @Override
         public void onSeekProcessed() {
+            onManifestFileChange();
             // Do nothing.
         }
 
@@ -293,6 +375,10 @@ public final class ExoPlayerView extends FrameLayout {
         public void onRepeatModeChanged(int repeatMode) {
             // Do nothing.
         }
+    }
+
+    public interface ManifestFileChangeListener {
+        void onManifestFileChange(String file, long time, long duration);
     }
 
 }

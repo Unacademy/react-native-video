@@ -226,6 +226,8 @@ class ReactExoplayerView extends FrameLayout implements
         exoPlayerView = new ExoPlayerView(getContext());
         exoPlayerView.setLayoutParams(layoutParams);
 
+        exoPlayerView.setManifestFileChangeListener(this.getManifestFileChangeListener());
+
         addView(exoPlayerView, 0, layoutParams);
 
         mainHandler = new Handler();
@@ -1393,5 +1395,13 @@ class ReactExoplayerView extends FrameLayout implements
                 removeViewAt(indexOfPC);
             }
         }
+    }
+
+    private ExoPlayerView.ManifestFileChangeListener getManifestFileChangeListener() {
+        return (file, time, duration) -> {
+            if(eventEmitter != null) {
+                eventEmitter.onManifestFileChange(file, time, duration);
+            }
+        };
     }
 }
