@@ -57,6 +57,7 @@ public final class ExoPlayerView extends FrameLayout {
     private ManifestFileChangeListener manifestFileChangeListener;
 
     private boolean useGreenScreen = false;
+    private boolean isGLTextureViewSurfaceCreated = false;
 
     public ExoPlayerView(Context context) {
         this(context, null);
@@ -186,6 +187,7 @@ public final class ExoPlayerView extends FrameLayout {
     private void updateSurfaceView() {
         View view;
         if(this.useGreenScreen) {
+            this.isGLTextureViewSurfaceCreated = false;
             view = new GLTextureView(context);
         } else {
             view = useTextureView ? new TextureView(context) : new SurfaceView(context);
@@ -203,12 +205,8 @@ public final class ExoPlayerView extends FrameLayout {
             GLTextureView glTextureView = (GLTextureView) view;
             glTextureView.setOpaque(false);
             glTextureView.setOnSurfaceCreatedCallBack(() -> {
-                if (ExoPlayerView.this.player != null) {
-                    setVideoView();
-                    this.player.addVideoListener(componentListener);
-                    this.player.addListener(componentListener);
-                    this.player.addTextOutput(componentListener);
-                }
+                this.isGLTextureViewSurfaceCreated = true;
+                this.setVideoViewAndAttachListeners();
             });
         } else {
             if (this.player != null) {
@@ -240,7 +238,13 @@ public final class ExoPlayerView extends FrameLayout {
         }
         this.player = player;
         shutterView.setVisibility(VISIBLE);
-        if (player != null && !this.useGreenScreen) {
+
+        this.setVideoViewAndAttachListeners();
+    }
+
+    private void setVideoViewAndAttachListeners() {
+        boolean canAttachListeners = this.player != null && (!this.useGreenScreen || this.isGLTextureViewSurfaceCreated);
+        if (canAttachListeners) {
             setVideoView();
             player.addVideoListener(componentListener);
             player.addListener(componentListener);
