@@ -111,7 +111,7 @@ class ReactExoplayerView extends FrameLayout implements
     private ExoPlayerView exoPlayerView;
 
     private DataSource.Factory mediaDataSourceFactory;
-    private SimpleExoPlayer player;
+    private volatile SimpleExoPlayer player;
     private DefaultTrackSelector trackSelector;
     private boolean playerNeedsSource;
 
@@ -568,10 +568,27 @@ class ReactExoplayerView extends FrameLayout implements
     private void releasePlayer() {
         if (player != null) {
             updateResumePosition();
-            player.release();
-            player.removeMetadataOutput(this);
-            trackSelector = null;
+
+            SimpleExoPlayer oldPlayer = player;
             player = null;
+
+            //Releasing the player in another thread since for some Android 10 devices, release is
+            //blocked for more than 5 seconds creating an ANR
+            Thread releaseThread = new Thread(() -> {
+                try {
+                    oldPlayer.release();
+                    oldPlayer.removeMetadataOutput(ReactExoplayerView.this);
+                } catch(Exception ignore) {}
+            });
+
+            Thread.UncaughtExceptionHandler handler = (th, ex) -> {
+                //catching exception here, can send an event to RN for logging
+            };
+
+            releaseThread.setUncaughtExceptionHandler(handler);
+            releaseThread.start();
+
+            trackSelector = null;
         }
         progressHandler.removeMessages(SHOW_PROGRESS);
         themedReactContext.removeLifecycleEventListener(this);
@@ -651,9 +668,12 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void updateResumePosition() {
-        resumeWindow = player.getCurrentWindowIndex();
-        resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
-                : C.TIME_UNSET;
+        //checking for null since we call this method on player error, player might be null sometimes
+        if(player != null) {
+            resumeWindow = player.getCurrentWindowIndex();
+            resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
+                    : C.TIME_UNSET;
+        }
     }
 
     private void clearResumePosition() {
@@ -793,7 +813,7 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     private void videoLoaded() {
-        if (loadVideoStarted) {
+        if (loadVideoStarted && player != null) {
             loadVideoStarted = false;
             setSelectedAudioTrack(audioTrackType, audioTrackValue);
             setSelectedVideoTrack(videoTrackType, videoTrackValue);
@@ -977,6 +997,15 @@ class ReactExoplayerView extends FrameLayout implements
         } else {
             updateResumePosition();
         }
+
+        //Resetting the player for an error native_flush is throwing an exception for Android 10 devices
+        //when seek is called, also note that the above error only happens only for webm formats not for mp4
+        if (e.type == ExoPlaybackException.TYPE_UNEXPECTED
+                && e.getCause() != null
+                && e.getCause().getMessage() != null
+                && e.getCause().getMessage().equals("Error 0xffffff92")) {
+            initializePlayer();
+        }
     }
 
     private static boolean isBehindLiveWindow(ExoPlaybackException e) {
@@ -997,7 +1026,10 @@ class ReactExoplayerView extends FrameLayout implements
 
     public int getTrackRendererIndex(int trackType) {
         if (player != null) {
-            int rendererCount = player.getRendererCount();
+            //we are setting player as null when releasing, but actual release happens in another thread
+            //so we might get callbacks from exoplayer even if player is null. Check {@link #releasePlayer}
+            //we might need to create a handler and set null after actual release is called in Thread
+            int rendererCount = player != null ? player.getRendererCount() : 0;
             for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
                 if (player.getRendererType(rendererIndex) == trackType) {
                     return rendererIndex;
