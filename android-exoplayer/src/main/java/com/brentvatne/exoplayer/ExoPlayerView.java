@@ -3,6 +3,8 @@ package com.brentvatne.exoplayer;
 import android.annotation.TargetApi;
 import android.content.Context;
 import androidx.core.content.ContextCompat;
+
+import android.graphics.Color;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
@@ -12,6 +14,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 
+import com.brentvatne.react.GLTextureView;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
@@ -34,6 +37,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import javax.annotation.Nullable;
+
 @TargetApi(16)
 public final class ExoPlayerView extends FrameLayout {
 
@@ -50,6 +55,8 @@ public final class ExoPlayerView extends FrameLayout {
     private boolean hideShutterView = false;
 
     private ManifestFileChangeListener manifestFileChangeListener;
+
+    private boolean useGreenScreen = false;
 
     public ExoPlayerView(Context context) {
         this(context, null);
@@ -177,7 +184,13 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     private void updateSurfaceView() {
-        View view = useTextureView ? new TextureView(context) : new SurfaceView(context);
+        View view;
+        if(this.useGreenScreen) {
+            view = new GLTextureView(context);
+        } else {
+            view = useTextureView ? new TextureView(context) : new SurfaceView(context);
+        }
+
         view.setLayoutParams(layoutParams);
 
         surfaceView = view;
@@ -186,8 +199,21 @@ public final class ExoPlayerView extends FrameLayout {
         }
         layout.addView(surfaceView, 0, layoutParams);
 
-        if (this.player != null) {
-            setVideoView();
+        if(view instanceof GLTextureView) {
+            GLTextureView glTextureView = (GLTextureView) view;
+            glTextureView.setOpaque(false);
+            glTextureView.setOnSurfaceCreatedCallBack(() -> {
+                if (ExoPlayerView.this.player != null) {
+                    setVideoView();
+                    this.player.addVideoListener(componentListener);
+                    this.player.addListener(componentListener);
+                    this.player.addTextOutput(componentListener);
+                }
+            });
+        } else {
+            if (this.player != null) {
+                setVideoView();
+            }
         }
     }
 
@@ -214,7 +240,7 @@ public final class ExoPlayerView extends FrameLayout {
         }
         this.player = player;
         shutterView.setVisibility(VISIBLE);
-        if (player != null) {
+        if (player != null && !this.useGreenScreen) {
             setVideoView();
             player.addVideoListener(componentListener);
             player.addListener(componentListener);
@@ -377,8 +403,19 @@ public final class ExoPlayerView extends FrameLayout {
         }
     }
 
+    public void setUseGreenScreen(@Nullable boolean useGreenScreen) {
+        this.useGreenScreen = useGreenScreen;
+        if(useGreenScreen) {
+            updateSurfaceView();
+        }
+    }
+
     public interface ManifestFileChangeListener {
         void onManifestFileChange(String file, long time, long duration);
+    }
+
+    public interface OnSurfaceCreatedCallBack {
+        void onSurfaceCreated();
     }
 
 }

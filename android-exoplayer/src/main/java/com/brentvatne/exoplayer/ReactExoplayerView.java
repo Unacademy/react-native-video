@@ -3,6 +3,7 @@ package com.brentvatne.exoplayer;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Context;
+import android.graphics.Color;
 import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Handler;
@@ -1394,6 +1395,14 @@ class ReactExoplayerView extends FrameLayout implements
             if (indexOfPC != -1) {
                 removeViewAt(indexOfPC);
             }
+        }
+    }
+
+    public void setUseGreenScreen(boolean useGreenScreen) {
+        if(this.exoPlayerView != null) {
+            this.exoPlayerView.setUseGreenScreen(useGreenScreen);
+            setBackgroundColor(Color.TRANSPARENT);
+            this.exoPlayerView.setBackgroundColor(Color.TRANSPARENT);
         }
     }
 
