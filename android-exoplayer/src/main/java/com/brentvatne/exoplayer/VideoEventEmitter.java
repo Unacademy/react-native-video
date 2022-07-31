@@ -145,7 +145,8 @@ class VideoEventEmitter {
     }
 
     void load(double duration, double currentPosition, int videoWidth, int videoHeight,
-              WritableArray audioTracks, WritableArray textTracks, WritableArray videoTracks, String trackId) {
+              WritableArray audioTracks, WritableArray textTracks, WritableArray videoTracks,
+              String trackId, int bitrate) {
         WritableMap event = Arguments.createMap();
         event.putDouble(EVENT_PROP_DURATION, duration / 1000D);
         event.putDouble(EVENT_PROP_CURRENT_TIME, currentPosition / 1000D);
@@ -153,6 +154,8 @@ class VideoEventEmitter {
         WritableMap naturalSize = Arguments.createMap();
         naturalSize.putInt(EVENT_PROP_WIDTH, videoWidth);
         naturalSize.putInt(EVENT_PROP_HEIGHT, videoHeight);
+        naturalSize.putInt(EVENT_PROP_BITRATE, bitrate);
+
         if (videoWidth > videoHeight) {
             naturalSize.putString(EVENT_PROP_ORIENTATION, "landscape");
         } else {
@@ -176,12 +179,16 @@ class VideoEventEmitter {
         receiveEvent(EVENT_LOAD, event);
     }
 
-    void progressChanged(double currentPosition, double bufferedDuration, double seekableDuration, double currentPlaybackTime) {
+    void progressChanged(double currentPosition, double bufferedDuration, double seekableDuration,
+                         double currentPlaybackTime, int height, int width, int bitrate) {
         WritableMap event = Arguments.createMap();
         event.putDouble(EVENT_PROP_CURRENT_TIME, currentPosition / 1000D);
         event.putDouble(EVENT_PROP_PLAYABLE_DURATION, bufferedDuration / 1000D);
         event.putDouble(EVENT_PROP_SEEKABLE_DURATION, seekableDuration / 1000D);
         event.putDouble(EVENT_PROP_CURRENT_PLAYBACK_TIME, currentPlaybackTime);
+        event.putInt(EVENT_PROP_HEIGHT, height);
+        event.putInt(EVENT_PROP_WIDTH, width);
+        event.putInt(EVENT_PROP_BITRATE, bitrate);
         receiveEvent(EVENT_PROGRESS, event);
     }
 
