@@ -71,6 +71,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_HIDE_SHUTTER_VIEW = "hideShutterView";
     private static final String PROP_CONTROLS = "controls";
     private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
+    private static final String PROP_FORCE_RELOAD = "forceReload";
 
     private ReactExoplayerConfig config;
 
@@ -337,6 +338,11 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_USE_GREEN_SCREEN)
     public void setUseGreenScreen(final ReactExoplayerView videoView, final boolean useGreenScreen) {
         videoView.setUseGreenScreen(useGreenScreen);
+    }
+
+    @ReactProp(name = PROP_FORCE_RELOAD, defaultBoolean = true)
+    public void setForceReload(final ReactExoplayerView videoView, boolean reload) {
+        videoView.reloadSource();
     }
 
     private boolean startsWithValidScheme(String uriString) {

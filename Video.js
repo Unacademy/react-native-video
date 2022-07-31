@@ -267,6 +267,14 @@ export default class Video extends Component {
     return NativeModules.UIManager.getViewManagerConfig(viewManagerName);
   };
 
+  forceReload = () => {
+    if (Platform.OS === 'ios') {
+	  // TODO iOS
+    } else {
+      this.setNativeProps({ forceReload: true });
+    }
+  }
+
   render() {
     const resizeMode = this.props.resizeMode;
     const source = resolveAssetSource(this.props.source) || {};
@@ -524,5 +532,6 @@ const RCTVideo = requireNativeComponent('RCTVideo', Video, {
     src: true,
     seek: true,
     fullscreen: true,
+    forceReload: true,
   },
 });
