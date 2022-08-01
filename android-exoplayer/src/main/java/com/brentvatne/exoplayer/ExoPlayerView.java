@@ -5,6 +5,7 @@ import android.content.Context;
 import androidx.core.content.ContextCompat;
 
 import android.graphics.Color;
+import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Gravity;
@@ -206,7 +207,12 @@ public final class ExoPlayerView extends FrameLayout {
             glTextureView.setOpaque(false);
             glTextureView.setOnSurfaceCreatedCallBack(() -> {
                 this.isGLTextureViewSurfaceCreated = true;
-                this.setVideoViewAndAttachListeners();
+                
+                if(this.context != null) {
+                  new Handler(this.context.getMainLooper()).post(() -> {
+                    this.setVideoViewAndAttachListeners();
+                  });
+                }
             });
         } else {
             if (this.player != null) {
