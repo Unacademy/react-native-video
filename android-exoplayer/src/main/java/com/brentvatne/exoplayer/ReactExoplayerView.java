@@ -73,6 +73,7 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
 import com.google.android.exoplayer2.util.Util;
 
+import java.io.File;
 import java.net.CookieHandler;
 import java.net.CookieManager;
 import java.net.CookiePolicy;
@@ -80,6 +81,9 @@ import java.util.ArrayList;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.Map;
+
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
@@ -165,6 +169,11 @@ class ReactExoplayerView extends FrameLayout implements
     private final AudioManager audioManager;
     private final AudioBecomingNoisyReceiver audioBecomingNoisyReceiver;
 
+    // encryption
+    private boolean areKeysInitialised = false;
+    private SecretKeySpec key;
+    private IvParameterSpec ivParam;
+
     private final Handler progressHandler = new Handler() {
         @Override
         public void handleMessage(Message msg) {
@@ -213,6 +222,8 @@ class ReactExoplayerView extends FrameLayout implements
         audioManager = (AudioManager) context.getSystemService(Context.AUDIO_SERVICE);
         themedReactContext.addLifecycleEventListener(this);
         audioBecomingNoisyReceiver = new AudioBecomingNoisyReceiver(themedReactContext);
+
+        clearKeys();
     }
 
 
@@ -534,6 +545,16 @@ class ReactExoplayerView extends FrameLayout implements
                         config.buildLoadErrorHandlingPolicy(minLoadRetryCount)
                 ).createMediaSource(uri);
             case C.TYPE_OTHER:
+
+                if(this.key != null && this.ivParam != null) {
+                    this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(
+                            this.key,
+                            this.ivParam,
+                            !this.areKeysInitialised
+                    );
+                    this.areKeysInitialised = true;
+                }
+
                 return new ProgressiveMediaSource.Factory(
                         mediaDataSourceFactory
                 ).setDrmSessionManager(drmSessionManager)
@@ -1453,5 +1474,18 @@ class ReactExoplayerView extends FrameLayout implements
                 eventEmitter.onManifestFileChange(file, time, duration);
             }
         };
+    }
+
+    private void clearKeys() {
+        this.key = null;
+        this.ivParam = null;
+    }
+
+    public void setKey(SecretKeySpec key) {
+        this.key = key;
+    }
+
+    public void setIvParam(IvParameterSpec ivParam) {
+        this.ivParam = ivParam;
     }
 }
