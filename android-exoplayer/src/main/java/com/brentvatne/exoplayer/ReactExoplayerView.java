@@ -173,6 +173,7 @@ class ReactExoplayerView extends FrameLayout implements
     private boolean areKeysInitialised = false;
     private SecretKeySpec key;
     private IvParameterSpec ivParam;
+    private boolean isEncrypted = false;
 
     private final Handler progressHandler = new Handler() {
         @Override
@@ -553,6 +554,8 @@ class ReactExoplayerView extends FrameLayout implements
                             !this.areKeysInitialised
                     );
                     this.areKeysInitialised = true;
+                } else if(isEncrypted){
+                    this.mediaDataSourceFactory = new EncryptedFileDataSourceFactory(themedReactContext);
                 }
 
                 return new ProgressiveMediaSource.Factory(
@@ -1078,9 +1081,27 @@ class ReactExoplayerView extends FrameLayout implements
 
     public void setSrc(final Uri uri, final String extension, Map<String, String> headers) {
         if (uri != null) {
-            boolean isSourceEqual = uri.equals(srcUri);
+            Uri updatedUri = uri;
+            if(updatedUri.getScheme().startsWith("file")) {
+                this.isEncrypted = false;
+                File srcFile = new File(updatedUri.getPath());
 
-            this.srcUri = uri;
+                if(!srcFile.getName().startsWith("encrypted_")) {
+                    File encryptedFile = new File(updatedUri.getPath().replace(srcFile.getName(), "encrypted_"+srcFile.getName()));
+                    if(encryptedFile.exists()){
+                        srcFile = encryptedFile;
+                    }
+                }
+
+                updatedUri = Uri.parse(srcFile.getAbsolutePath());
+                if(updatedUri.getLastPathSegment().startsWith("encrypted_")){
+                    isEncrypted = true;
+                }
+            }
+
+            boolean isSourceEqual = updatedUri.equals(srcUri);
+
+            this.srcUri = updatedUri;
             this.extension = extension;
             this.requestHeaders = headers;
             this.mediaDataSourceFactory =

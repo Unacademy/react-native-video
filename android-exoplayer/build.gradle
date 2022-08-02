@@ -32,6 +32,8 @@ dependencies {
         exclude group: 'com.android.support'
     }
 
+    implementation "androidx.security:security-crypto:1.1.0-alpha03"
+
     // All support libs must use the same version
     implementation "androidx.annotation:annotation:1.1.0"
     implementation "androidx.core:core:1.1.0"
