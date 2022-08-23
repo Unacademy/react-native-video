@@ -138,7 +138,7 @@ public class EncryptedFileDataSourceFactory implements DataSource.Factory {
 
     Context mContext;
 
-    EncryptedFileDataSourceFactory(Context context) {
+    public EncryptedFileDataSourceFactory(Context context) {
         mContext = context;
     }
 
