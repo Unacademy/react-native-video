@@ -134,7 +134,7 @@ public final class EncryptedFileDataSource implements DataSource {
     }
 }
 
-class EncryptedFileDataSourceFactory implements DataSource.Factory {
+public class EncryptedFileDataSourceFactory implements DataSource.Factory {
 
     Context mContext;
 
