@@ -77,6 +77,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_FORCE_RELOAD = "forceReload";
     private static final String PROP_USE_ENCRYPTION_SECRET_KEY= "encryptionSecretKey";
     private static final String PROP_USE_ENCRYPTION_PARAMS = "encryptionParams";
+    private static final String PROP_SET_STOP = "stop";
 
     private ReactExoplayerConfig config;
 
@@ -374,6 +375,13 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             }
         }
         videoView.setIvParam(ivParams);
+    }
+
+    @ReactProp(name = PROP_SET_STOP)
+    public void setStop(final ReactExoplayerView videoView, boolean shouldStop) {
+        if(videoView != null && shouldStop) {
+            videoView.clearSrc();
+        }
     }
 
     private boolean startsWithValidScheme(String uriString) {

@@ -25,6 +25,10 @@ export default class Video extends Component {
     };
   }
 
+  componentWillUnmount() {
+    this.stop();
+  }
+
   setNativeProps(nativeProps) {
     this._root.setNativeProps(nativeProps);
   }
@@ -66,6 +70,14 @@ export default class Video extends Component {
       this.setNativeProps({ seek: time });
     }
   };
+
+  stop = () => {
+    if (Platform.OS === 'ios') {
+      // TODO
+    } else {
+      this.setNativeProps({ stop: true });
+    }
+  }
 
   presentFullscreenPlayer = () => {
     this.setNativeProps({ fullscreen: true });
@@ -392,6 +404,7 @@ Video.propTypes = {
     PropTypes.number,
     PropTypes.object,
   ]),
+  stop: PropTypes.bool,
   fullscreen: PropTypes.bool,
   onVideoLoadStart: PropTypes.func,
   onVideoLoad: PropTypes.func,
@@ -533,6 +546,7 @@ const RCTVideo = requireNativeComponent('RCTVideo', Video, {
   nativeOnly: {
     src: true,
     seek: true,
+    stop: false,
     fullscreen: true,
     forceReload: true,
   },
