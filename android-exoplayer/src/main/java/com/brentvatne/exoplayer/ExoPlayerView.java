@@ -4,10 +4,8 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import androidx.core.content.ContextCompat;
 
-import android.graphics.Color;
 import android.os.Handler;
 import android.util.AttributeSet;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.SurfaceView;
 import android.view.TextureView;
@@ -17,25 +15,22 @@ import android.widget.FrameLayout;
 
 import com.brentvatne.react.GLTextureView;
 import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayer;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.playlist.HlsMediaPlaylist;
-import com.google.android.exoplayer2.video.VideoListener;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.text.Cue;
-import com.google.android.exoplayer2.text.TextRenderer;
-import com.google.android.exoplayer2.text.TextOutput;
 import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.ui.SubtitleView;
+import com.google.android.exoplayer2.video.VideoSize;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -207,7 +202,7 @@ public final class ExoPlayerView extends FrameLayout {
             glTextureView.setOpaque(false);
             glTextureView.setOnSurfaceCreatedCallBack(() -> {
                 this.isGLTextureViewSurfaceCreated = true;
-                
+
                 if(this.context != null) {
                   new Handler(this.context.getMainLooper()).post(() -> {
                     this.setVideoViewAndAttachListeners();
@@ -226,8 +221,7 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     /**
-     * Set the {@link SimpleExoPlayer} to use. The {@link SimpleExoPlayer#addTextOutput} and
-     * {@link SimpleExoPlayer#addVideoListener} method of the player will be called and previous
+     * Set the {@link SimpleExoPlayer} to use. The {@link SimpleExoPlayer#addListener(Player.Listener)} will be called and previous
      * assignments are overridden.
      *
      * @param player The {@link SimpleExoPlayer} to use.
@@ -237,8 +231,8 @@ public final class ExoPlayerView extends FrameLayout {
             return;
         }
         if (this.player != null) {
-            this.player.removeTextOutput(componentListener);
-            this.player.removeVideoListener(componentListener);
+//            this.player.removeTextOutput(componentListener);
+//            this.player.removeVideoListener(componentListener);
             this.player.removeListener(componentListener);
             clearVideoView();
         }
@@ -252,9 +246,9 @@ public final class ExoPlayerView extends FrameLayout {
         boolean canAttachListeners = this.player != null && (!this.useGreenScreen || this.isGLTextureViewSurfaceCreated);
         if (canAttachListeners) {
             setVideoView();
-            player.addVideoListener(componentListener);
+//            player.addVideoListener(componentListener);
             player.addListener(componentListener);
-            player.addTextOutput(componentListener);
+//            player.addTextOutput(componentListener);
         }
     }
 
@@ -324,8 +318,7 @@ public final class ExoPlayerView extends FrameLayout {
         layout.invalidateAspectRatio();
     }
 
-    private final class ComponentListener implements VideoListener,
-            TextOutput, ExoPlayer.EventListener {
+    private final class ComponentListener implements ExoPlayer.Listener {
 
         // TextRenderer.Output implementation
 
@@ -337,7 +330,10 @@ public final class ExoPlayerView extends FrameLayout {
         // SimpleExoPlayer.VideoListener implementation
 
         @Override
-        public void onVideoSizeChanged(int width, int height, int unappliedRotationDegrees, float pixelWidthHeightRatio) {
+        public void onVideoSizeChanged(VideoSize videoSize) {
+          int height = videoSize.height;
+          int width = videoSize.width;
+          float pixelWidthHeightRatio = videoSize.pixelWidthHeightRatio;
             boolean isInitialRatio = layout.getAspectRatio() == 0;
             layout.setAspectRatio(height == 0 ? 1 : (width * pixelWidthHeightRatio) / height);
 
@@ -367,7 +363,7 @@ public final class ExoPlayerView extends FrameLayout {
         }
 
         @Override
-        public void onPlayerError(ExoPlaybackException e) {
+        public void onPlayerError(PlaybackException e) {
             // Do nothing.
         }
 
@@ -378,8 +374,8 @@ public final class ExoPlayerView extends FrameLayout {
         }
 
         @Override
-        public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
-            if(manifest instanceof HlsManifest && reason == 2) {
+        public void onTimelineChanged(Timeline timeline, int reason) {
+            if(player.getCurrentManifest() instanceof HlsManifest && reason == 2) {
                 onManifestFileChange();
             }
             // Do nothing.

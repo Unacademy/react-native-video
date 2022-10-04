@@ -199,7 +199,7 @@ class VideoEventEmitter {
         event.putInt(EVENT_PROP_HEIGHT, height);
         event.putString(EVENT_PROP_TRACK_ID, id);
         receiveEvent(EVENT_BANDWIDTH, event);
-    }    
+    }
 
     void seek(long currentPosition, long seekTime) {
         WritableMap event = Arguments.createMap();
@@ -269,7 +269,7 @@ class VideoEventEmitter {
         WritableArray metadataArray = Arguments.createArray();
 
         for (int i = 0; i < metadata.length(); i++) {
-            
+
             Metadata.Entry entry = metadata.get(i);
 
             if (entry instanceof Id3Frame) {
@@ -290,16 +290,16 @@ class VideoEventEmitter {
                 map.putString("value", value);
 
                 metadataArray.pushMap(map);
-                
+
             } else if (entry instanceof EventMessage) {
-                
+
                 EventMessage eventMessage = (EventMessage) entry;
-                
+
                 WritableMap map = Arguments.createMap();
                 map.putString("identifier", eventMessage.schemeIdUri);
                 map.putString("value", eventMessage.value);
                 metadataArray.pushMap(map);
-                
+
             }
         }
 
