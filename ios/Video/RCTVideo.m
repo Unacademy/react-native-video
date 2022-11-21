@@ -433,7 +433,7 @@ _shouldDrawImage = false;
             self.image = chromaFilter.outputImage;
             CVBufferRelease(pixBuf);
         } else {
-            _image = baseImage;
+            self.image = baseImage;
         }
     }
 }
