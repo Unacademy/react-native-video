@@ -396,7 +396,7 @@ static int const RCTVideoUnset = -1;
             
             CVBufferRelease(pixBuf);
         } else {
-            _image = baseImage;
+            self.image = baseImage;
         }
     }
 }
