@@ -431,10 +431,10 @@ _shouldDrawImage = false;
             }
             [chromaFilter setValue:baseImage forKey:kCIInputImageKey];
             self.image = chromaFilter.outputImage;
-            CVBufferRelease(pixBuf);
         } else {
             self.image = baseImage;
         }
+        CVBufferRelease(pixBuf);
     }
 }
 
