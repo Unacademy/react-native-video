@@ -592,7 +592,7 @@ class ReactExoplayerView extends FrameLayout implements
                 public void run() {
                     try {
                         playerOld.release();
-                        playerOld.setMetadataOutput(null);
+                        playerOld.addMetadataOutput(null);
                     } catch (Exception e) {
                         e.printStackTrace();
                     }
