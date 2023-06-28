@@ -262,7 +262,7 @@ public final class ExoPlayerView extends FrameLayout {
     public void sendFileChangeEventForTime(long time) {
         Object manifest = player.getCurrentManifest();
         if (manifest instanceof HlsManifest) {
-            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null, 0, 0, time*1000, "", "", 0, 0, false);
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null,"", 0, 0, time*1000,null, "", "", 0, 0, false);
 
             int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
                 @Override
@@ -362,7 +362,7 @@ public final class ExoPlayerView extends FrameLayout {
 
         @Override
         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
-            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_DYNAMIC)) {
+            if (manifest instanceof HlsManifest && (reason == Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE)) {
                 sendFileChangeEventForTime();
             }
             // Do nothing.
