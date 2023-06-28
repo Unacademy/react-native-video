@@ -51,10 +51,9 @@ public final class ExoPlayerView extends FrameLayout {
     private Context context;
     private ViewGroup.LayoutParams layoutParams;
     private FileChangeListener fileChangeListener;
-    private int transparentColor = Color.GREEN;
-    private boolean useTextureView = false;
-    private boolean useCustomTextureView = false;
-
+    private boolean useTextureView = true;
+    private boolean useGreenScreen = false;
+    private boolean hideShutterView = false;
     public ExoPlayerView(Context context) {
         this(context, null);
     }
@@ -140,9 +139,9 @@ public final class ExoPlayerView extends FrameLayout {
                 public void onSurfaceCreated() {
                     if (ExoPlayerView.this.player != null) {
                         setVideoView();
-                        player.setVideoListener(componentListener);
+                        player.addVideoListener(componentListener);
                         player.addListener(componentListener);
-                        player.setTextOutput(componentListener);
+                        player.addTextOutput(componentListener);
                     }
                 }
             });
@@ -230,13 +229,6 @@ public final class ExoPlayerView extends FrameLayout {
         }
     }
 
-    public void setUseGreenScreen(boolean useGreenScreen) {
-        this.useGreenScreen = useGreenScreen;
-        if (useGreenScreen) {
-            updateSurfaceView();
-        }
-    }
-
     private final Runnable measureAndLayout = new Runnable() {
         @Override
         public void run() {
@@ -309,8 +301,13 @@ public final class ExoPlayerView extends FrameLayout {
         public void onFileChange(String file, long time, long duration);
     }
 
-    private final class ComponentListener implements SimpleExoPlayer.VideoListener,
-            TextRenderer.Output, ExoPlayer.EventListener {
+    public void invalidateAspectRatio() {
+        // Resetting aspect ratio will force layout refresh on next video size changed
+        layout.invalidateAspectRatio();
+    }
+
+    private final class ComponentListener implements VideoListener,
+            TextOutput, ExoPlayer.EventListener {
 
         // TextRenderer.Output implementation
 

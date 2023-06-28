@@ -1286,14 +1286,6 @@ class ReactExoplayerView extends FrameLayout implements
         }
     }
 
-    public void setMaxBitRateModifier(int newMaxBitRate) {
-        maxBitRate = newMaxBitRate;
-        if (player != null) {
-            trackSelector.setParameters(trackSelector.buildUponParameters()
-                    .setMaxVideoBitrate(maxBitRate == 0 ? Integer.MAX_VALUE : maxBitRate));
-        }
-    }
-
     public void setMinLoadRetryCountModifier(int newMinLoadRetryCount) {
         minLoadRetryCount = newMinLoadRetryCount;
         releasePlayer();
