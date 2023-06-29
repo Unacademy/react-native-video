@@ -70,6 +70,8 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
     private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
+    private static final String PROP_USE_ENCRYPTION_SECRET_KEY= "encryptionSecretKey";
+    private static final String PROP_USE_ENCRYPTION_PARAMS = "encryptionParams";
     private static final String PROP_MUX_CONFIG = "muxConfig";
     private static final String PROP_MUX_CONFIG_KEY = "muxConfigKey";
     private static final String PROP_MUX_CONFIG_VIDEO_ID = "muxConfigVideoId";
