@@ -4,6 +4,7 @@ import android.annotation.TargetApi;
 import android.content.Context;
 
 import androidx.core.content.ContextCompat;
+
 import android.util.AttributeSet;
 import android.view.Gravity;
 import android.view.SurfaceView;
@@ -49,6 +50,7 @@ public final class ExoPlayerView extends FrameLayout {
     private boolean useTextureView = true;
     private boolean useGreenScreen = false;
     private boolean hideShutterView = false;
+
     public ExoPlayerView(Context context) {
         this(context, null);
     }
@@ -257,7 +259,7 @@ public final class ExoPlayerView extends FrameLayout {
     public void sendFileChangeEventForTime(long time) {
         Object manifest = player.getCurrentManifest();
         if (manifest instanceof HlsManifest) {
-            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null,"", 0, 0, time*1000,null, "", "", 0, 0, false, ImmutableList.of());
+            HlsMediaPlaylist.Segment segment = new HlsMediaPlaylist.Segment("", null, "", 0, 0, time * 1000, null, "", "", 0, 0, false, ImmutableList.of());
 
             int index = Collections.binarySearch(((HlsManifest) manifest).mediaPlaylist.segments, segment, new Comparator<HlsMediaPlaylist.Segment>() {
                 @Override
@@ -266,17 +268,26 @@ public final class ExoPlayerView extends FrameLayout {
                 }
             });
 
-            if(index < 0) {
-                index = -1*index - 2;
+            if (index < 0) {
+                index = -1 * index - 2;
             }
 
             if (index >= 0 && index < ((HlsManifest) manifest).mediaPlaylist.segments.size()) {
                 try {
-                    String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
-                    long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
+                    String url = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url;
+                    String file = "";
+                    if (url.contains("ts")) {
+                        String[] urlSplit = ((HlsManifest) manifest).mediaPlaylist.segments.get(index).url.split("-");
+                        long val = Long.parseLong(urlSplit[urlSplit.length - 1].replace(".ts", ""));
+                        file = val + "";
+                    } else if (url.contains("m4s")) {
+                        file = url.replace(".m4s", "");
+                    } else {
+                        file = url;
+                    }
                     if (fileChangeListener != null) {
                         try {
-                            fileChangeListener.onFileChange(val + "", ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
+                            fileChangeListener.onFileChange(file, ((HlsManifest) manifest).mediaPlaylist.segments.get(index).relativeStartTimeUs, ((HlsManifest) manifest).mediaPlaylist.durationUs);
                         } catch (Exception ignore) {
 //                            ignore.printStackTrace();
                         }
