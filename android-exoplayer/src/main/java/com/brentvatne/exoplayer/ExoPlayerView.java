@@ -100,17 +100,17 @@ public final class ExoPlayerView extends FrameLayout {
 
     private void clearVideoView() {
         if (surfaceView instanceof TextureView) {
-            player.clearVideoTextureView((TextureView) surfaceView);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.clearVideoTextureView((TextureView) surfaceView));
         } else if (surfaceView instanceof SurfaceView) {
-            player.clearVideoSurfaceView((SurfaceView) surfaceView);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.clearVideoSurfaceView((SurfaceView) surfaceView));
         }
     }
 
     private void setVideoView() {
         if (surfaceView instanceof TextureView) {
-            player.setVideoTextureView((TextureView) surfaceView);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setVideoTextureView((TextureView) surfaceView));
         } else if (surfaceView instanceof SurfaceView) {
-            player.setVideoSurfaceView((SurfaceView) surfaceView);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setVideoSurfaceView((SurfaceView) surfaceView));
         }
     }
 
@@ -176,7 +176,7 @@ public final class ExoPlayerView extends FrameLayout {
         }
         this.player = player;
         shutterView.setVisibility(VISIBLE);
-        if (player != null && !useGreenScreen) {
+        if (player != null) {
             setVideoView();
             player.addVideoListener(componentListener);
             player.addListener(componentListener);
@@ -240,7 +240,10 @@ public final class ExoPlayerView extends FrameLayout {
         if (player == null) {
             return;
         }
-        TrackSelectionArray selections = player.getCurrentTrackSelections();
+        TrackSelectionArray selections = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentTrackSelections());
+        if (selections == null) {
+            return;
+        }
         for (int i = 0; i < selections.length; i++) {
             if (player.getRendererType(i) == C.TRACK_TYPE_VIDEO && selections.get(i) != null) {
                 // Video enabled so artwork must be hidden. If the shutter is closed, it will be opened in
@@ -300,7 +303,13 @@ public final class ExoPlayerView extends FrameLayout {
     }
 
     public void sendFileChangeEventForTime() {
-        sendFileChangeEventForTime(player.getCurrentPosition());
+        if (player == null) {
+            return;
+        }
+        Long currentPosition = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentPosition());
+        if (currentPosition != null) {
+            sendFileChangeEventForTime(currentPosition);
+        }
     }
 
     public interface FileChangeListener {

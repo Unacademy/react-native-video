@@ -192,20 +192,29 @@ class ReactExoplayerView extends FrameLayout implements
         public void handleMessage(Message msg) {
             switch (msg.what) {
                 case SHOW_PROGRESS:
-                    if (player != null
-                            && player.getPlaybackState() == Player.STATE_READY
-                            && player.getPlayWhenReady()
-                    ) {
-                        Format videoFormat = player.getVideoFormat();
-                        int width = videoFormat != null ? videoFormat.width : 0;
-                        int height = videoFormat != null ? videoFormat.height : 0;
-                        int bitrate = videoFormat != null ? videoFormat.bitrate : 0;
+                    if (player != null) {
+                        Integer playBackState = ThreadUtil.callOnApplicationThread(player, () -> player.getPlaybackState());
+                        Boolean playWhenReady = ThreadUtil.callOnApplicationThread(player, () -> player.getPlayWhenReady());
+                        Long duration = ThreadUtil.callOnApplicationThread(player, () -> player.getDuration());
+                        Long currentPos = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentPosition());
 
-                        long pos = player.getCurrentPosition();
-                        long bufferedDuration = player.getBufferedPercentage() * player.getDuration() / 100;
-                        eventEmitter.progressChanged(pos, bufferedDuration, player.getDuration(), getPositionInFirstPeriodMsForCurrentWindow(pos), height, width, bitrate);
-                        msg = obtainMessage(SHOW_PROGRESS);
-                        sendMessageDelayed(msg, Math.round(mProgressUpdateInterval));
+                        if (playBackState != null
+                                && playWhenReady != null
+                                && duration != null
+                                && currentPos != null
+                                && playBackState == Player.STATE_READY
+                                && playWhenReady) {
+                            Format videoFormat = player.getVideoFormat();
+                            int width = videoFormat != null ? videoFormat.width : 0;
+                            int height = videoFormat != null ? videoFormat.height : 0;
+                            int bitrate = videoFormat != null ? videoFormat.bitrate : 0;
+
+                            long pos = currentPos;
+                            long bufferedDuration = player.getBufferedPercentage() * duration / 100;
+                            eventEmitter.progressChanged(pos, bufferedDuration, duration, getPositionInFirstPeriodMsForCurrentWindow(pos), height, width, bitrate);
+                            msg = obtainMessage(SHOW_PROGRESS);
+                            sendMessageDelayed(msg, Math.round(mProgressUpdateInterval));
+                        }
                     }
                     break;
             }
@@ -214,8 +223,10 @@ class ReactExoplayerView extends FrameLayout implements
 
     public double getPositionInFirstPeriodMsForCurrentWindow(long currentPosition) {
         Timeline.Window window = new Timeline.Window();
-        if (!player.getCurrentTimeline().isEmpty()) {
-            player.getCurrentTimeline().getWindow(player.getCurrentWindowIndex(), window);
+        Timeline currentTimeLine = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentTimeline());
+        Integer currentWindowIndex = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentWindowIndex());
+        if (currentTimeLine != null && currentWindowIndex != null && !currentTimeLine.isEmpty()) {
+            currentTimeLine.getWindow(currentWindowIndex, window);
         }
         return window.windowStartTimeMs + currentPosition;
     }
@@ -373,60 +384,6 @@ class ReactExoplayerView extends FrameLayout implements
     }
 
     /**
-     * Initializing Player control
-     */
-    private void initializePlayerControl() {
-        if (playerControlView == null) {
-            playerControlView = new PlayerControlView(getContext());
-        }
-
-        // Setting the player for the playerControlView
-        playerControlView.setPlayer(player);
-        playerControlView.show();
-        playPauseControlContainer = playerControlView.findViewById(R.id.exo_play_pause_container);
-
-        // Invoking onClick event for exoplayerView
-        exoPlayerView.setOnClickListener(new OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                togglePlayerControlVisibility();
-            }
-        });
-
-        //Handling the playButton click event
-        ImageButton playButton = playerControlView.findViewById(R.id.exo_play);
-        playButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (player != null && player.getPlaybackState() == Player.STATE_ENDED) {
-                    player.seekTo(0);
-                }
-                setPausedModifier(false);
-            }
-        });
-
-        //Handling the pauseButton click event
-        ImageButton pauseButton = playerControlView.findViewById(R.id.exo_pause);
-        pauseButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                setPausedModifier(true);
-            }
-        });
-
-        // Invoking onPlayerStateChanged event for Player
-        eventListener = new Player.EventListener() {
-            @Override
-            public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
-                reLayout(playPauseControlContainer);
-                //Remove this eventListener once its executed. since UI will work fine once after the reLayout is done
-                player.removeListener(eventListener);
-            }
-        };
-        player.addListener(eventListener);
-    }
-
-    /**
      * Adding Player control to the frame layout
      */
     private void addPlayerControl() {
@@ -492,7 +449,7 @@ class ReactExoplayerView extends FrameLayout implements
                     playerNeedsSource = true;
 
                     PlaybackParameters params = new PlaybackParameters(rate, 1f);
-                    player.setPlaybackParameters(params);
+                    ThreadUtil.executeOnApplicationThread(player, () -> player.setPlaybackParameters(params));
                     if (muxKey != null) {
                         initializeMux();
                     }
@@ -531,9 +488,9 @@ class ReactExoplayerView extends FrameLayout implements
 
                     boolean haveResumePosition = resumeWindow != C.INDEX_UNSET;
                     if (haveResumePosition) {
-                        player.seekTo(resumeWindow, resumePosition);
+                        ThreadUtil.executeOnApplicationThread(player, () -> player.seekTo(resumeWindow, resumePosition));
                     }
-                    player.prepare(mediaSource, !haveResumePosition, false);
+                    ThreadUtil.executeOnApplicationThread(player, () -> player.prepare(mediaSource, !haveResumePosition, false));
                     playerNeedsSource = false;
 
                     reLayout(exoPlayerView);
@@ -593,9 +550,9 @@ class ReactExoplayerView extends FrameLayout implements
                 if (key != null && ivParam != null) {
                     this.mediaDataSourceFactory = DataSourceUtil.getEncryptedDataSourceFactory(key, ivParam, !areKeysInitialised);
                     areKeysInitialised = true;
-                } else if(isEncrypted){
-                  this.mediaDataSourceFactory = new EncryptedFileDataSourceFactory(themedReactContext);
-              }
+                } else if (isEncrypted) {
+                    this.mediaDataSourceFactory = new EncryptedFileDataSourceFactory(themedReactContext);
+                }
                 return new ProgressiveMediaSource.Factory(
                         mediaDataSourceFactory
                 ).setDrmSessionManager(drmSessionManager)
@@ -649,7 +606,7 @@ class ReactExoplayerView extends FrameLayout implements
         if (player != null) {
             updateResumePosition();
             try {
-                player.release();
+                ThreadUtil.executeOnApplicationThread(player, () -> player.release());
                 player.removeMetadataOutput(this);
             } catch (Exception e) {
                 e.printStackTrace();
@@ -681,23 +638,28 @@ class ReactExoplayerView extends FrameLayout implements
         if (playWhenReady) {
             this.hasAudioFocus = requestAudioFocus();
             if (this.hasAudioFocus) {
-                player.setPlayWhenReady(true);
+                ThreadUtil.executeOnApplicationThread(player, () -> player.setPlayWhenReady(true));
             }
         } else {
-            player.setPlayWhenReady(false);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setPlayWhenReady(false));
         }
     }
 
     private void startPlayback() {
         if (player != null) {
-            switch (player.getPlaybackState()) {
+            Integer playBackState = ThreadUtil.callOnApplicationThread(player, () -> player.getPlaybackState());
+            if (playBackState == null) {
+                return;
+            }
+            switch (playBackState) {
                 case Player.STATE_IDLE:
                 case Player.STATE_ENDED:
                     initializePlayer();
                     break;
                 case Player.STATE_BUFFERING:
                 case Player.STATE_READY:
-                    if (!player.getPlayWhenReady()) {
+                    Boolean playWhenReady = ThreadUtil.callOnApplicationThread(player, () -> player.getPlayWhenReady());
+                    if (playWhenReady != null && !playWhenReady) {
                         setPlayWhenReady(true);
                     }
                     break;
@@ -715,7 +677,8 @@ class ReactExoplayerView extends FrameLayout implements
 
     private void pausePlayback() {
         if (player != null) {
-            if (player.getPlayWhenReady()) {
+            Boolean playWhenReady = ThreadUtil.callOnApplicationThread(player, () -> player.getPlayWhenReady());
+            if (playWhenReady != null && playWhenReady) {
                 setPlayWhenReady(false);
             }
         }
@@ -737,9 +700,12 @@ class ReactExoplayerView extends FrameLayout implements
     private void updateResumePosition() {
         //checking for null since we call this method on player error, player might be null sometimes
         if (player != null) {
-            resumeWindow = player.getCurrentWindowIndex();
-            resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, player.getCurrentPosition())
-                    : C.TIME_UNSET;
+            Long currentPosition = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentPosition());
+            if (currentPosition != null) {
+                resumeWindow = player.getCurrentWindowIndex();
+                resumePosition = player.isCurrentWindowSeekable() ? Math.max(0, currentPosition)
+                        : C.TIME_UNSET;
+            }
         }
     }
 
@@ -798,12 +764,13 @@ class ReactExoplayerView extends FrameLayout implements
             if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
                 // Lower the volume
                 if (!muted) {
-                    player.setVolume(audioVolume * 0.8f);
+                    ThreadUtil.executeOnApplicationThread(player, () -> player.setVolume(audioVolume * 0.8f));
+
                 }
             } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
                 // Raise it back to normal
                 if (!muted) {
-                    player.setVolume(audioVolume * 1);
+                    ThreadUtil.executeOnApplicationThread(player, () -> player.setVolume(audioVolume * 1));
                 }
             }
         }
@@ -890,7 +857,12 @@ class ReactExoplayerView extends FrameLayout implements
             int height = videoFormat != null ? videoFormat.height : 0;
             String trackId = videoFormat != null ? videoFormat.id : "-1";
             int bitrate = videoFormat != null ? videoFormat.bitrate : 0;
-            eventEmitter.load(player.getDuration(), player.getCurrentPosition(), width, height,
+            Long currentPosition = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentPosition());
+            Long duration = ThreadUtil.callOnApplicationThread(player, () -> player.getDuration());
+            if (currentPosition == null || duration == null) {
+                return;
+            }
+            eventEmitter.load(duration, currentPosition, width, height,
                     getAudioTrackInfo(), getTextTrackInfo(), getVideoTrackInfo(), trackId, bitrate);
         }
     }
@@ -992,8 +964,9 @@ class ReactExoplayerView extends FrameLayout implements
         }
         // When repeat is turned on, reaching the end of the video will not cause a state change
         // so we need to explicitly detect it.
-        if (reason == Player.DISCONTINUITY_REASON_PERIOD_TRANSITION
-                && player.getRepeatMode() == Player.REPEAT_MODE_ONE) {
+        Integer repeatMode = ThreadUtil.callOnApplicationThread(player, () -> player.getRepeatMode());
+        if (repeatMode != null && reason == Player.DISCONTINUITY_REASON_PERIOD_TRANSITION
+                && repeatMode == Player.REPEAT_MODE_ONE) {
             eventEmitter.end();
         }
     }
@@ -1005,7 +978,11 @@ class ReactExoplayerView extends FrameLayout implements
 
     @Override
     public void onSeekProcessed() {
-        eventEmitter.seek(player.getCurrentPosition(), seekTime);
+        Long currentPosition = ThreadUtil.callOnApplicationThread(player, () -> player.getCurrentPosition());
+        if (currentPosition == null) {
+            return;
+        }
+        eventEmitter.seek(currentPosition, seekTime);
         seekTime = C.TIME_UNSET;
     }
 
@@ -1095,7 +1072,7 @@ class ReactExoplayerView extends FrameLayout implements
         //we are setting player as null when releasing, but actual release happens in another thread
         //so we might get callbacks from exoplayer even if player is null. Check {@link #releasePlayer}
         //we might need to create a handler and set null after actual release is called in Thread
-        int rendererCount = player != null ? player.getRendererCount() : 0;
+        int rendererCount = (player != null && ThreadUtil.isOnApplicationThread(player)) ? player.getRendererCount() : 0;
         for (int rendererIndex = 0; rendererIndex < rendererCount; rendererIndex++) {
             if (player.getRendererType(rendererIndex) == trackType) {
                 return rendererIndex;
@@ -1147,7 +1124,7 @@ class ReactExoplayerView extends FrameLayout implements
 
     public void clearSrc() {
         if (srcUri != null) {
-            player.stop(true);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.stop(true));
             this.srcUri = null;
             this.extension = null;
             this.requestHeaders = null;
@@ -1200,9 +1177,9 @@ class ReactExoplayerView extends FrameLayout implements
     public void setRepeatModifier(boolean repeat) {
         if (player != null) {
             if (repeat) {
-                player.setRepeatMode(Player.REPEAT_MODE_ONE);
+                ThreadUtil.executeOnApplicationThread(player, () -> player.setRepeatMode(Player.REPEAT_MODE_ONE));
             } else {
-                player.setRepeatMode(Player.REPEAT_MODE_OFF);
+                ThreadUtil.executeOnApplicationThread(player, () -> player.setRepeatMode(Player.REPEAT_MODE_OFF));
             }
         }
         this.repeat = repeat;
@@ -1359,7 +1336,7 @@ class ReactExoplayerView extends FrameLayout implements
         this.muted = muted;
         audioVolume = muted ? 0.f : 1.f;
         if (player != null) {
-            player.setVolume(audioVolume);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setVolume(audioVolume));
         }
     }
 
@@ -1367,14 +1344,14 @@ class ReactExoplayerView extends FrameLayout implements
     public void setVolumeModifier(float volume) {
         audioVolume = volume;
         if (player != null) {
-            player.setVolume(audioVolume);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setVolume(audioVolume));
         }
     }
 
     public void seekTo(long positionMs) {
         if (player != null) {
             seekTime = positionMs;
-            player.seekTo(positionMs);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.seekTo(positionMs));
         }
     }
 
@@ -1383,7 +1360,7 @@ class ReactExoplayerView extends FrameLayout implements
 
         if (player != null) {
             PlaybackParameters params = new PlaybackParameters(rate, 1f);
-            player.setPlaybackParameters(params);
+            ThreadUtil.executeOnApplicationThread(player, () -> player.setPlaybackParameters(params));
         }
     }
 
