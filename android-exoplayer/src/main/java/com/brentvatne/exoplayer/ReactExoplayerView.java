@@ -1010,6 +1010,9 @@ class ReactExoplayerView extends FrameLayout implements
     public void onPlayerError(ExoPlaybackException e) {
         String errorString = "ExoPlaybackException type : " + e.type;
         Exception ex = e;
+        //this variable is used to initialize player again, when there is renderer issue
+        //but the decoder is initialized, happening in LLHLS Live Stream, when stream is paused.
+        boolean isNotDecoderException = false;
         if (e.type == ExoPlaybackException.TYPE_RENDERER) {
             Exception cause = e.getRendererException();
             if (cause instanceof MediaCodecRenderer.DecoderInitializationException) {
@@ -1030,13 +1033,15 @@ class ReactExoplayerView extends FrameLayout implements
                     errorString = getResources().getString(R.string.error_instantiating_decoder,
                             decoderInitializationException.codecInfo.name);
                 }
+            } else {
+                isNotDecoderException = true;
             }
         } else if (e.type == ExoPlaybackException.TYPE_SOURCE) {
             errorString = getResources().getString(R.string.unrecognized_media_format);
         }
         eventEmitter.error(errorString, ex);
         playerNeedsSource = true;
-        if (isBehindLiveWindow(e)) {
+        if (isBehindLiveWindow(e) || isNotDecoderException) {
             clearResumePosition();
             initializePlayer();
         } else {
