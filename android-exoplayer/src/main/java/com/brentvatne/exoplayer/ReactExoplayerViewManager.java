@@ -66,6 +66,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_MUX_CONFIG_VIDEO_URL = "muxConfigVideoUrl";
     private static final String PROP_MUX_CONFIG_USER_ID = "muxConfigUserId";
     private static final String PROP_MUX_CONFIG_VIDEO_TITLE = "muxConfigVideoTitle";
+    private static final String PROP_FORCE_RELOAD = "forceReload";
 
     @Override
     public String getName() {
@@ -300,6 +301,11 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             String videoTitle = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_TITLE) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_TITLE) : "";
             videoView.setUpMux(muxKey, userId, videoId, videoUrl, videoTitle);
         }
+    }
+
+    @ReactProp(name = PROP_FORCE_RELOAD, defaultBoolean = true)
+    public void setForceReload(final ReactExoplayerView videoView, boolean reload) {
+        videoView.reloadSource();
     }
 
     private boolean startsWithValidScheme(String uriString) {
