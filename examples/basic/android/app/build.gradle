@@ -127,9 +127,9 @@ android {
 }
 
 dependencies {
-    compile "com.android.support:appcompat-v7:25.2.0"
-    compile "com.facebook.react:react-native:+"  // From node_modules
-    compile project(':react-native-video')
+    implementation "com.android.support:appcompat-v7:25.2.0"
+    implementation "com.facebook.react:react-native:+"  // From node_modules
+    implementation project(':react-native-video')
 //    compile project(':react-native-video-exoplayer') // uncomment to use exoplayer
 }
 
