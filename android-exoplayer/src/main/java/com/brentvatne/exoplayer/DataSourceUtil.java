@@ -14,6 +14,10 @@ import com.google.android.exoplayer2.util.Util;
 import okhttp3.Call;
 import okhttp3.JavaNetCookieJar;
 import okhttp3.OkHttpClient;
+
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
 import java.util.Map;
 
 public class DataSourceUtil {
@@ -24,6 +28,7 @@ public class DataSourceUtil {
   private static DataSource.Factory rawDataSourceFactory = null;
   private static DataSource.Factory defaultDataSourceFactory = null;
   private static HttpDataSource.Factory defaultHttpDataSourceFactory = null;
+  private static DataSource.Factory encryptedDataSourceFactory = null;
   private static String userAgent = null;
 
   public static void setUserAgent(String userAgent) {
@@ -47,7 +52,6 @@ public class DataSourceUtil {
   public static void setRawDataSourceFactory(DataSource.Factory factory) {
     DataSourceUtil.rawDataSourceFactory = factory;
   }
-
 
   public static DataSource.Factory getDefaultDataSourceFactory(ReactContext context, DefaultBandwidthMeter bandwidthMeter, Map<String, String> requestHeaders) {
     if (defaultDataSourceFactory == null || (requestHeaders != null && !requestHeaders.isEmpty())) {
@@ -85,13 +89,24 @@ public class DataSourceUtil {
     CookieJarContainer container = (CookieJarContainer) client.cookieJar();
     ForwardingCookieHandler handler = new ForwardingCookieHandler(context);
     container.setCookieJar(new JavaNetCookieJar(handler));
+    
     OkHttpDataSource.Factory okHttpDataSourceFactory = new OkHttpDataSource.Factory((Call.Factory) client)
-      .setUserAgent(getUserAgent(context))
-      .setTransferListener(bandwidthMeter);
+        .setUserAgent(getUserAgent(context))
+        .setTransferListener(bandwidthMeter);
 
-    if (requestHeaders != null)
+    if (requestHeaders != null) {
       okHttpDataSourceFactory.setDefaultRequestProperties(requestHeaders);
+    }
 
     return okHttpDataSourceFactory;
+  }
+
+  // 🔐 For downloaded encrypted files
+  public static DataSource.Factory getEncryptedDataSourceFactory(SecretKeySpec mSecretKeySpec, IvParameterSpec mIvParameterSpec,
+                                                                 boolean forceInitialisation){
+    if (encryptedDataSourceFactory == null || forceInitialisation) {
+      encryptedDataSourceFactory = new EncryptedDataSourceFactory(mSecretKeySpec, mIvParameterSpec);
+    }
+    return encryptedDataSourceFactory;
   }
 }
