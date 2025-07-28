@@ -107,7 +107,7 @@ public class GLTextureView
             public void surfacePrepared(Surface surface) {
                 alphaTexture = renderer.surface;
                 if (onSurfaceCreatedCallBack != null) {
-                    onSurfaceCreatedCallBack.onSurfaceCreated();
+                    onSurfaceCreatedCallBack.onSurfaceCreated(surface);
                 }
             }
         });
