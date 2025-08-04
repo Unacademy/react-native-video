@@ -681,19 +681,24 @@ public boolean shouldContinueLoading(long playbackPositionUs, long bufferedDurat
                 }
 
                 // Initialize handler to run on the main thread
-                activity.runOnUiThread(new Runnable() {
-                  public void run() {
-                    try {
-                      // Source initialization must run on the main thread
-                      initializePlayerSource(self, drmSessionManager);
-                    } catch (Exception ex) {
-                      self.playerNeedsSource = true;
-                      Log.e("ExoPlayer Exception", "Failed to initialize Player!");
-                      Log.e("ExoPlayer Exception", ex.toString());
-                      self.eventEmitter.error(ex.toString(), ex, "1001");
+                if (activity != null) {
+                    activity.runOnUiThread(new Runnable() {
+                    public void run() {
+                        try {
+                            // Source initialization must run on the main thread
+                            initializePlayerSource(self, drmSessionManager);
+                            } catch (Exception ex) {
+                            self.playerNeedsSource = true;
+                            Log.e("ExoPlayer Exception", "Failed to initialize Player!");
+                            Log.e("ExoPlayer Exception", ex.toString());
+                            self.eventEmitter.error(ex.toString(), ex, "1001");
+                        }
                     }
-                  }
-                });
+                    });
+                } else {
+                    Log.e("ReactExoplayerView", "Activity is null, cannot initialize player source.");
+                    self.playerNeedsSource = true;
+                }
               }
             });
           } else if (srcUri != null) {
