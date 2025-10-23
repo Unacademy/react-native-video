@@ -115,44 +115,109 @@ public final class ExoPlayerView extends FrameLayout {
       player.setVideoSurfaceView((SurfaceView) surfaceView);
     }
   }
+ private void updateSurfaceView() {
 
-  private void updateSurfaceView() {
     View view;
-    if (!useTextureView || useSecureView) {
-      view = new SurfaceView(context);
-      if (useSecureView) {
-        ((SurfaceView) view).setSecure(true);
-      }
+
+    if (useGreenScreen) {
+
+      view = new GLTextureView(context);
+
     } else {
-      view = new TextureView(context);
+
+      view = useTextureView ? new TextureView(context) : new SurfaceView(context);
+
     }
+
     view.setLayoutParams(layoutParams);
 
+
+
     surfaceView = view;
+
     if (layout.getChildAt(0) != null) {
+
       layout.removeViewAt(0);
+
     }
+
     layout.addView(surfaceView, 0, layoutParams);
-    // if (view instanceof GLTextureView) {
-    //     GLTextureView glTextureView = (GLTextureView) view;
-    //     glTextureView.setOpaque(false);
-    //     glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
-    //         @Override
-    //         public void onSurfaceCreated() {
-    //             if (ExoPlayerView.this.player != null) {
-    //                 setVideoView();
-    //                 player.addVideoListener(componentListener);
-    //                 player.addListener(componentListener);
-    //                 player.addTextOutput(componentListener);
-    //             }
-    //         }
-    //     });
-    // } else {
-    if (this.player != null) {
-      setVideoView();
+
+    if (view instanceof GLTextureView) {
+
+      GLTextureView glTextureView = (GLTextureView) view;
+
+      glTextureView.setOpaque(false);
+
+      glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
+
+        @Override
+
+        public void onSurfaceCreated(Surface surface) {
+
+          if (ExoPlayerView.this.player != null) {
+
+            setVideoView();
+
+            // player.addVideoListener(componentListener);
+
+            player.addListener(componentListener);
+
+            //player.addTextOutput(componentListener);
+
+          }
+
+        }
+
+      });
+
+    } else {
+
+      if (this.player != null) {
+
+        setVideoView();
+
+      }
+
     }
-    //}
-  }
+ }
+  // private void updateSurfaceView() {
+  //   View view;
+  //   if (!useTextureView || useSecureView) {
+  //     view = new SurfaceView(context);
+  //     if (useSecureView) {
+  //       ((SurfaceView) view).setSecure(true);
+  //     }
+  //   } else {
+  //     view = new TextureView(context);
+  //   }
+  //   view.setLayoutParams(layoutParams);
+
+  //   surfaceView = view;
+  //   if (layout.getChildAt(0) != null) {
+  //     layout.removeViewAt(0);
+  //   }
+  //   layout.addView(surfaceView, 0, layoutParams);
+  //   // if (view instanceof GLTextureView) {
+  //   //     GLTextureView glTextureView = (GLTextureView) view;
+  //   //     glTextureView.setOpaque(false);
+  //   //     glTextureView.setOnSurfaceCreatedCallBack(new OnSurfaceCreatedCallBack() {
+  //   //         @Override
+  //   //         public void onSurfaceCreated() {
+  //   //             if (ExoPlayerView.this.player != null) {
+  //   //                 setVideoView();
+  //   //                 player.addVideoListener(componentListener);
+  //   //                 player.addListener(componentListener);
+  //   //                 player.addTextOutput(componentListener);
+  //   //             }
+  //   //         }
+  //   //     });
+  //   // } else {
+  //   if (this.player != null) {
+  //     setVideoView();
+  //   }
+  //   //}
+  // }
 
   private void updateShutterViewVisibility() {
     shutterView.setVisibility(this.hideShutterView ? View.INVISIBLE : View.VISIBLE);
