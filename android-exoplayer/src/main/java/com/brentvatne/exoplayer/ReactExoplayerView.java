@@ -734,7 +734,8 @@ public boolean shouldContinueLoading(long playbackPositionUs, long bufferedDurat
     );
     DefaultRenderersFactory renderersFactory =
       new DefaultRenderersFactory(getContext())
-        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
+        .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+    .setEnableDecoderFallback(true);
     player = new ExoPlayer.Builder(getContext(), renderersFactory)
       .setTrackSelector(self.trackSelector)
       .setBandwidthMeter(bandwidthMeter)
