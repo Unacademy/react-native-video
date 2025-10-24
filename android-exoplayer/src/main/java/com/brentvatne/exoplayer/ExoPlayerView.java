@@ -35,6 +35,8 @@ import com.google.android.exoplayer2.video.VideoSize;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import android.os.Handler;
+import android.os.Looper;
 
 @TargetApi(16)
 public final class ExoPlayerView extends FrameLayout {
@@ -108,13 +110,34 @@ public final class ExoPlayerView extends FrameLayout {
     }
   }
 
-  private void setVideoView() {
+  // private void setVideoView() {
+  //   if (surfaceView instanceof TextureView) {
+  //     player.setVideoTextureView((TextureView) surfaceView);
+  //   } else if (surfaceView instanceof SurfaceView) {
+  //     player.setVideoSurfaceView((SurfaceView) surfaceView);
+  //   }
+  // }
+
+   private void setVideoView() {
+    if (player == null || surfaceView == null) return;
+
+    // Ensure the player is accessed on the main thread
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      attachVideoView();
+    } else {
+      new Handler(Looper.getMainLooper()).post(this::attachVideoView);
+    }
+  }
+
+  // Separate method to attach the player to the surface
+  private void attachVideoView() {
     if (surfaceView instanceof TextureView) {
       player.setVideoTextureView((TextureView) surfaceView);
     } else if (surfaceView instanceof SurfaceView) {
       player.setVideoSurfaceView((SurfaceView) surfaceView);
     }
   }
+
  private void updateSurfaceView() {
 
     View view;
