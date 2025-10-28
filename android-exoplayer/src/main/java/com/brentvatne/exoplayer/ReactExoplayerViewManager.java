@@ -1,6 +1,7 @@
 package com.brentvatne.exoplayer;
 
 import android.content.Context;
+import android.graphics.Color;
 import android.net.Uri;
 import android.text.TextUtils;
 import android.util.Log;
@@ -18,12 +19,15 @@ import com.google.android.exoplayer2.util.Util;
 import com.google.android.exoplayer2.DefaultLoadControl;
 import com.google.android.exoplayer2.upstream.RawResourceDataSource;
 
+import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.UUID;
 
 import javax.annotation.Nullable;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerView> {
 
@@ -49,10 +53,14 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_PAUSED = "paused";
     private static final String PROP_MUTED = "muted";
     private static final String PROP_VOLUME = "volume";
+    private static final String PROP_BACK_BUFFER_DURATION_MS = "backBufferDurationMs";
     private static final String PROP_BUFFER_CONFIG = "bufferConfig";
     private static final String PROP_BUFFER_CONFIG_MIN_BUFFER_MS = "minBufferMs";
     private static final String PROP_BUFFER_CONFIG_MAX_BUFFER_MS = "maxBufferMs";
     private static final String PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_MS = "bufferForPlaybackMs";
+    private static final String PROP_BUFFER_CONFIG_MAX_HEAP_ALLOCATION_PERCENT = "maxHeapAllocationPercent";
+    private static final String PROP_BUFFER_CONFIG_MIN_BACK_BUFFER_MEMORY_RESERVE_PERCENT = "minBackBufferMemoryReservePercent";
+    private static final String PROP_BUFFER_CONFIG_MIN_BUFFER_MEMORY_RESERVE_PERCENT = "minBufferMemoryReservePercent";
     private static final String PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS = "bufferForPlaybackAfterRebufferMs";
     private static final String PROP_PREVENTS_DISPLAY_SLEEP_DURING_VIDEO_PLAYBACK = "preventsDisplaySleepDuringVideoPlayback";
     private static final String PROP_PROGRESS_UPDATE_INTERVAL = "progressUpdateInterval";
@@ -62,9 +70,23 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_MIN_LOAD_RETRY_COUNT = "minLoadRetryCount";
     private static final String PROP_MAXIMUM_BIT_RATE = "maxBitRate";
     private static final String PROP_PLAY_IN_BACKGROUND = "playInBackground";
+    private static final String PROP_CONTENT_START_TIME = "contentStartTime";
     private static final String PROP_DISABLE_FOCUS = "disableFocus";
+    private static final String PROP_DISABLE_BUFFERING = "disableBuffering";
+    private static final String PROP_DISABLE_DISCONNECT_ERROR = "disableDisconnectError";
     private static final String PROP_FULLSCREEN = "fullscreen";
     private static final String PROP_USE_TEXTURE_VIEW = "useTextureView";
+    private static final String PROP_SECURE_VIEW = "useSecureView";
+    private static final String PROP_USE_GREEN_SCREEN = "useGreenScreen";
+    private static final String PROP_USE_ENCRYPTION_SECRET_KEY= "encryptionSecretKey";
+    private static final String PROP_USE_ENCRYPTION_PARAMS = "encryptionParams";
+    private static final String PROP_MUX_CONFIG = "muxConfig";
+    private static final String PROP_MUX_CONFIG_KEY = "muxConfigKey";
+    private static final String PROP_MUX_CONFIG_VIDEO_ID = "muxConfigVideoId";
+    private static final String PROP_MUX_CONFIG_VIDEO_URL = "muxConfigVideoUrl";
+    private static final String PROP_MUX_CONFIG_USER_ID = "muxConfigUserId";
+    private static final String PROP_MUX_CONFIG_VIDEO_TITLE = "muxConfigVideoTitle";
+    private static final String PROP_FORCE_RELOAD = "forceReload";
     private static final String PROP_SELECTED_VIDEO_TRACK = "selectedVideoTrack";
     private static final String PROP_SELECTED_VIDEO_TRACK_TYPE = "type";
     private static final String PROP_SELECTED_VIDEO_TRACK_VALUE = "value";
@@ -156,15 +178,15 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
             }
         } else {
             int identifier = context.getResources().getIdentifier(
-                uriString,
-                "drawable",
-                context.getPackageName()
+                    uriString,
+                    "drawable",
+                    context.getPackageName()
             );
             if (identifier == 0) {
                 identifier = context.getResources().getIdentifier(
-                    uriString,
-                    "raw",
-                    context.getPackageName()
+                        uriString,
+                        "raw",
+                        context.getPackageName()
                 );
             }
             if (identifier > 0) {
@@ -207,7 +229,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
 
     @ReactProp(name = PROP_SELECTED_AUDIO_TRACK)
     public void setSelectedAudioTrack(final ReactExoplayerView videoView,
-                                     @Nullable ReadableMap selectedAudioTrack) {
+                                      @Nullable ReadableMap selectedAudioTrack) {
         String typeString = null;
         Dynamic value = null;
         if (selectedAudioTrack != null) {
@@ -293,6 +315,25 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     public void setDisableFocus(final ReactExoplayerView videoView, final boolean disableFocus) {
         videoView.setDisableFocus(disableFocus);
     }
+    @ReactProp(name = PROP_BACK_BUFFER_DURATION_MS, defaultInt = 0)
+    public void setBackBufferDurationMs(final ReactExoplayerView videoView, final int backBufferDurationMs) {
+        videoView.setBackBufferDurationMs(backBufferDurationMs);
+    }
+
+    @ReactProp(name = PROP_CONTENT_START_TIME, defaultInt = 0)
+    public void setContentStartTime(final ReactExoplayerView videoView, final int contentStartTime) {
+        videoView.setContentStartTime(contentStartTime);
+    }
+
+    @ReactProp(name = PROP_DISABLE_BUFFERING, defaultBoolean = false)
+    public void setDisableBuffering(final ReactExoplayerView videoView, final boolean disableBuffering) {
+        videoView.setDisableBuffering(disableBuffering);
+    }
+
+    @ReactProp(name = PROP_DISABLE_DISCONNECT_ERROR, defaultBoolean = false)
+    public void setDisableDisconnectError(final ReactExoplayerView videoView, final boolean disableDisconnectError) {
+        videoView.setDisableDisconnectError(disableDisconnectError);
+    }
 
     @ReactProp(name = PROP_FULLSCREEN, defaultBoolean = false)
     public void setFullscreen(final ReactExoplayerView videoView, final boolean fullscreen) {
@@ -302,6 +343,41 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     @ReactProp(name = PROP_USE_TEXTURE_VIEW, defaultBoolean = true)
     public void setUseTextureView(final ReactExoplayerView videoView, final boolean useTextureView) {
         videoView.setUseTextureView(useTextureView);
+    }
+    @ReactProp(name = PROP_SECURE_VIEW, defaultBoolean = true)
+    public void useSecureView(final ReactExoplayerView videoView, final boolean useSecureView) {
+        videoView.useSecureView(useSecureView);
+    }
+
+    @ReactProp(name = PROP_USE_GREEN_SCREEN)
+    public void setPropUseGreenScreen(final ReactExoplayerView videoView, boolean useGreenScreen) {
+        videoView.setUseGreenScreen(useGreenScreen);
+    }
+
+    @ReactProp(name = PROP_USE_ENCRYPTION_SECRET_KEY)
+    public void setPropEncryptionSecretKey(final ReactExoplayerView videoView, String encryptionSecretKey) {
+      SecretKeySpec key = null;
+      if (encryptionSecretKey != null && !encryptionSecretKey.isEmpty()) {
+        try {
+          key = new SecretKeySpec(encryptionSecretKey.getBytes("ISO-8859-1"),"AES");
+        } catch (UnsupportedEncodingException e) {
+          key = null;
+        }
+      }
+      videoView.setKey(key);
+    }
+
+    @ReactProp(name = PROP_USE_ENCRYPTION_PARAMS)
+    public void setPropEncryptionParams(final ReactExoplayerView videoView, String encryptionParams) {
+      IvParameterSpec ivParams = null;
+      if (encryptionParams != null && !encryptionParams.isEmpty()) {
+        try {
+          ivParams = new IvParameterSpec(encryptionParams.getBytes("ISO-8859-1"));
+        } catch (UnsupportedEncodingException e) {
+          ivParams = null;
+        }
+      }
+      videoView.setIvParam(ivParams);
     }
 
     @ReactProp(name = PROP_HIDE_SHUTTER_VIEW, defaultBoolean = false)
@@ -320,6 +396,9 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
         int maxBufferMs = DefaultLoadControl.DEFAULT_MAX_BUFFER_MS;
         int bufferForPlaybackMs = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS;
         int bufferForPlaybackAfterRebufferMs = DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS;
+        double maxHeapAllocationPercent = ReactExoplayerView.DEFAULT_MAX_HEAP_ALLOCATION_PERCENT;
+        double minBackBufferMemoryReservePercent = ReactExoplayerView.DEFAULT_MIN_BACK_BUFFER_MEMORY_RESERVE;
+        double minBufferMemoryReservePercent = ReactExoplayerView.DEFAULT_MIN_BUFFER_MEMORY_RESERVE;
         if (bufferConfig != null) {
             minBufferMs = bufferConfig.hasKey(PROP_BUFFER_CONFIG_MIN_BUFFER_MS)
                     ? bufferConfig.getInt(PROP_BUFFER_CONFIG_MIN_BUFFER_MS) : minBufferMs;
@@ -329,8 +408,31 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
                     ? bufferConfig.getInt(PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_MS) : bufferForPlaybackMs;
             bufferForPlaybackAfterRebufferMs = bufferConfig.hasKey(PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS)
                     ? bufferConfig.getInt(PROP_BUFFER_CONFIG_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_MS) : bufferForPlaybackAfterRebufferMs;
-            videoView.setBufferConfig(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs);
+            maxHeapAllocationPercent = bufferConfig.hasKey(PROP_BUFFER_CONFIG_MAX_HEAP_ALLOCATION_PERCENT)
+                    ? bufferConfig.getDouble(PROP_BUFFER_CONFIG_MAX_HEAP_ALLOCATION_PERCENT) : maxHeapAllocationPercent;
+            minBackBufferMemoryReservePercent = bufferConfig.hasKey(PROP_BUFFER_CONFIG_MIN_BACK_BUFFER_MEMORY_RESERVE_PERCENT)
+                    ? bufferConfig.getDouble(PROP_BUFFER_CONFIG_MIN_BACK_BUFFER_MEMORY_RESERVE_PERCENT) : minBackBufferMemoryReservePercent;
+            minBufferMemoryReservePercent = bufferConfig.hasKey(PROP_BUFFER_CONFIG_MIN_BUFFER_MEMORY_RESERVE_PERCENT)
+                    ? bufferConfig.getDouble(PROP_BUFFER_CONFIG_MIN_BUFFER_MEMORY_RESERVE_PERCENT) : minBufferMemoryReservePercent;
+            videoView.setBufferConfig(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs, maxHeapAllocationPercent, minBackBufferMemoryReservePercent, minBufferMemoryReservePercent);
+            //videoView.setBufferConfig(minBufferMs, maxBufferMs, bufferForPlaybackMs, bufferForPlaybackAfterRebufferMs);
         }
+    }
+
+    @ReactProp(name = PROP_MUX_CONFIG)
+    public void setMuxConfig(final ReactExoplayerView videoView, @Nullable ReadableMap muxConfig) {
+        if (muxConfig != null) {
+            String muxKey = muxConfig.hasKey(PROP_MUX_CONFIG_KEY) ? muxConfig.getString(PROP_MUX_CONFIG_KEY) : "";
+            String videoId = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_ID) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_ID) : "";
+            String videoUrl = muxConfig.hasKey(PROP_MUX_CONFIG_VIDEO_URL) ? muxConfig.getString(PROP_MUX_CONFIG_VIDEO_URL) : "";
+            String userId = muxConfig.hasKey(PROP_MUX_CONFIG_USER_ID) ? muxConfig.getString(PROP_MUX_CONFIG_USER_ID) : "";
+           // videoView.setUpMux(muxKey, userId, videoId, videoUrl);
+        }
+    }
+
+    @ReactProp(name = PROP_FORCE_RELOAD, defaultBoolean = true)
+    public void setForceReload(final ReactExoplayerView videoView, boolean reload) {
+       // videoView.reloadSource();
     }
 
     private boolean startsWithValidScheme(String uriString) {

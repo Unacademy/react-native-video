@@ -15,6 +15,8 @@ import com.google.android.exoplayer2.metadata.id3.TextInformationFrame;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.io.StringWriter;
+import java.io.PrintWriter;
 
 class VideoEventEmitter {
 
@@ -41,12 +43,14 @@ class VideoEventEmitter {
     private static final String EVENT_STALLED = "onPlaybackStalled";
     private static final String EVENT_RESUME = "onPlaybackResume";
     private static final String EVENT_READY = "onReadyForDisplay";
+    private static final String EVENT_PLAYBACK_STATE_CHANGED = "onVideoPlaybackStateChanged";
     private static final String EVENT_BUFFER = "onVideoBuffer";
     private static final String EVENT_IDLE = "onVideoIdle";
     private static final String EVENT_TIMED_METADATA = "onTimedMetadata";
     private static final String EVENT_AUDIO_BECOMING_NOISY = "onVideoAudioBecomingNoisy";
     private static final String EVENT_AUDIO_FOCUS_CHANGE = "onAudioFocusChanged";
     private static final String EVENT_PLAYBACK_RATE_CHANGE = "onPlaybackRateChange";
+    private static final String EVENT_MANIFEST_FILE_CHANGE = "onManifestFileChange";
 
     static final String[] Events = {
             EVENT_LOAD_START,
@@ -63,12 +67,14 @@ class VideoEventEmitter {
             EVENT_RESUME,
             EVENT_READY,
             EVENT_BUFFER,
+            EVENT_PLAYBACK_STATE_CHANGED,
             EVENT_IDLE,
             EVENT_TIMED_METADATA,
             EVENT_AUDIO_BECOMING_NOISY,
             EVENT_AUDIO_FOCUS_CHANGE,
             EVENT_PLAYBACK_RATE_CHANGE,
             EVENT_BANDWIDTH,
+            EVENT_MANIFEST_FILE_CHANGE
     };
 
     @Retention(RetentionPolicy.SOURCE)
@@ -87,12 +93,14 @@ class VideoEventEmitter {
             EVENT_RESUME,
             EVENT_READY,
             EVENT_BUFFER,
+            EVENT_PLAYBACK_STATE_CHANGED,
             EVENT_IDLE,
             EVENT_TIMED_METADATA,
             EVENT_AUDIO_BECOMING_NOISY,
             EVENT_AUDIO_FOCUS_CHANGE,
             EVENT_PLAYBACK_RATE_CHANGE,
             EVENT_BANDWIDTH,
+            EVENT_MANIFEST_FILE_CHANGE
     })
     @interface VideoEvents {
     }
@@ -103,6 +111,8 @@ class VideoEventEmitter {
     private static final String EVENT_PROP_REVERSE = "canPlayReverse";
     private static final String EVENT_PROP_STEP_FORWARD = "canStepForward";
     private static final String EVENT_PROP_STEP_BACKWARD = "canStepBackward";
+    private static final String EVENT_PROP_BUFFER_START = "bufferStart";
+    private static final String EVENT_PROP_BUFFER_END = "bufferEnd";
 
     private static final String EVENT_PROP_DURATION = "duration";
     private static final String EVENT_PROP_PLAYABLE_DURATION = "playableDuration";
@@ -114,6 +124,7 @@ class VideoEventEmitter {
     private static final String EVENT_PROP_TRACK_ID = "trackId";
     private static final String EVENT_PROP_WIDTH = "width";
     private static final String EVENT_PROP_HEIGHT = "height";
+    private static final String EVENT_PROP_BITRATE = "bitrate";
     private static final String EVENT_PROP_ORIENTATION = "orientation";
     private static final String EVENT_PROP_VIDEO_TRACKS = "videoTracks";
     private static final String EVENT_PROP_AUDIO_TRACKS = "audioTracks";
@@ -121,15 +132,18 @@ class VideoEventEmitter {
     private static final String EVENT_PROP_HAS_AUDIO_FOCUS = "hasAudioFocus";
     private static final String EVENT_PROP_IS_BUFFERING = "isBuffering";
     private static final String EVENT_PROP_PLAYBACK_RATE = "playbackRate";
+    private static final String EVENT_PROP_FILE_NAME = "filename";
+    private static final String EVENT_PROP_FILE_TIME = "filetime";
 
     private static final String EVENT_PROP_ERROR = "error";
     private static final String EVENT_PROP_ERROR_STRING = "errorString";
     private static final String EVENT_PROP_ERROR_EXCEPTION = "errorException";
+    private static final String EVENT_PROP_ERROR_TRACE = "errorStackTrace";
+    private static final String EVENT_PROP_ERROR_CODE = "errorCode";
 
     private static final String EVENT_PROP_TIMED_METADATA = "metadata";
 
-    private static final String EVENT_PROP_BITRATE = "bitrate";   
-
+    private static final String EVENT_PROP_IS_PLAYING = "isPlaying";
 
     void setViewId(int viewId) {
         this.viewId = viewId;
@@ -187,7 +201,7 @@ class VideoEventEmitter {
         event.putInt(EVENT_PROP_HEIGHT, height);
         event.putString(EVENT_PROP_TRACK_ID, id);
         receiveEvent(EVENT_BANDWIDTH, event);
-    }    
+    }
 
     void seek(long currentPosition, long seekTime) {
         WritableMap event = Arguments.createMap();
@@ -204,6 +218,11 @@ class VideoEventEmitter {
         WritableMap map = Arguments.createMap();
         map.putBoolean(EVENT_PROP_IS_BUFFERING, isBuffering);
         receiveEvent(EVENT_BUFFER, map);
+    }
+    void playbackStateChanged(boolean isPlaying) {
+        WritableMap map = Arguments.createMap();
+        map.putBoolean(EVENT_PROP_IS_PLAYING, isPlaying);
+        receiveEvent(EVENT_PLAYBACK_STATE_CHANGED, map);
     }
 
     void idle() {
@@ -229,11 +248,26 @@ class VideoEventEmitter {
     void fullscreenDidDismiss() {
         receiveEvent(EVENT_FULLSCREEN_DID_DISMISS, null);
     }
-
     void error(String errorString, Exception exception) {
+        _error(errorString, exception, "0001");
+    }
+
+    void error(String errorString, Exception exception, String errorCode) {
+        _error(errorString, exception, errorCode);
+    }
+
+    void _error(String errorString, Exception exception, String errorCode) {
+        // Prepare stack trace
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        exception.printStackTrace(pw);
+        String stackTrace = sw.toString();
+
         WritableMap error = Arguments.createMap();
         error.putString(EVENT_PROP_ERROR_STRING, errorString);
         error.putString(EVENT_PROP_ERROR_EXCEPTION, exception.toString());
+        error.putString(EVENT_PROP_ERROR_CODE, errorCode);
+        error.putString(EVENT_PROP_ERROR_TRACE, stackTrace);
         WritableMap event = Arguments.createMap();
         event.putMap(EVENT_PROP_ERROR, error);
         receiveEvent(EVENT_ERROR, event);
@@ -245,11 +279,19 @@ class VideoEventEmitter {
         receiveEvent(EVENT_PLAYBACK_RATE_CHANGE, map);
     }
 
+    void manifestFileChange(String file, long fileTime, long duration) {
+        WritableMap map = Arguments.createMap();
+        map.putString(EVENT_PROP_FILE_NAME, file);
+        map.putDouble(EVENT_PROP_FILE_TIME, fileTime);
+        map.putDouble(EVENT_PROP_DURATION, duration);
+        receiveEvent(EVENT_MANIFEST_FILE_CHANGE, map);
+    }
+
     void timedMetadata(Metadata metadata) {
         WritableArray metadataArray = Arguments.createArray();
 
         for (int i = 0; i < metadata.length(); i++) {
-            
+
             Metadata.Entry entry = metadata.get(i);
 
             if (entry instanceof Id3Frame) {
@@ -270,16 +312,16 @@ class VideoEventEmitter {
                 map.putString("value", value);
 
                 metadataArray.pushMap(map);
-                
+
             } else if (entry instanceof EventMessage) {
-                
+
                 EventMessage eventMessage = (EventMessage) entry;
-                
+
                 WritableMap map = Arguments.createMap();
                 map.putString("identifier", eventMessage.schemeIdUri);
                 map.putString("value", eventMessage.value);
                 metadataArray.pushMap(map);
-                
+
             }
         }
 
