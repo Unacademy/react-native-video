@@ -74,6 +74,10 @@ export interface VideoPlayerEvents {
   /**
    * Called when player receives timed metadata.
    * @platform Android, Ios
+   * @note On Android HLS playback, active segment changes may also appear here as synthetic
+   * entries: identifier `rnv-manifest-segment-url` (value = segment URL) and
+   * `rnv-manifest-segment-start-us` (value = segment start in microseconds, as a decimal string).
+   * This replaces the legacy `onManifestFileChange` surface from older forks (e.g. c30a0649).
    */
   onTimedMetadata: (metadata: TimedMetadata) => void;
   /**

@@ -8,6 +8,7 @@ import androidx.media3.common.Metadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
@@ -15,6 +16,8 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.hls.HlsManifest
+import androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.extractor.metadata.emsg.EventMessage
@@ -88,6 +91,9 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
   // Text track selection state
   private var selectedExternalTrackIndex: Int? = null
+
+  /** Last HLS segment URL reported through onTimedMetadata (legacy manifestFileChange-style hook). */
+  private var lastNotifiedHlsSegmentUrl: String? = null
 
   private companion object {
     const val PROGRESS_UPDATE_INTERVAL_MS = 250L
@@ -334,6 +340,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       runOnMainThreadSync {
         // Update source
         this.source = source
+        lastNotifiedHlsSegmentUrl = null
         applyMaxVideoBitrateTrackConstraint()
         player.setMediaSource(hybridSource.mediaSource)
 
@@ -368,6 +375,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       VideoManager.unregisterPlayer(this)
       stopProgressUpdates()
       loadedWithSource = false
+      lastNotifiedHlsSegmentUrl = null
 
       eventEmitter.clearAllListeners()
 
@@ -421,6 +429,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
               bufferDuration = playableDurationFromNow
             )
           )
+          maybeNotifyHlsSegmentChange()
           progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
         }
       }
@@ -448,6 +457,61 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .build()
   }
 
+  /**
+   * Replaces the old `onManifestFileChange` event: when playing HLS, emits
+   * [onTimedMetadata] entries with identifiers `rnv-manifest-segment-url` and
+   * `rnv-manifest-segment-start-us` whenever the active segment changes.
+   */
+  private fun maybeNotifyHlsSegmentChange() {
+    if (!loadedWithSource) {
+      return
+    }
+    val manifest = player.currentManifest
+    if (manifest !is HlsManifest) {
+      return
+    }
+    val playlist = manifest.mediaPlaylist ?: return
+    val segments = playlist.segments
+    if (segments.isEmpty()) {
+      return
+    }
+
+    val positionUs = player.currentPosition * 1000L
+    var active: HlsMediaPlaylist.Segment? = null
+    for (i in segments.indices) {
+      val seg = segments[i]
+      val endUs = if (i + 1 < segments.size) {
+        segments[i + 1].relativeStartTimeUs
+      } else if (playlist.durationUs != C.TIME_UNSET) {
+        playlist.durationUs
+      } else {
+        Long.MAX_VALUE
+      }
+      if (positionUs >= seg.relativeStartTimeUs && positionUs < endUs) {
+        active = seg
+        break
+      }
+    }
+    if (active == null) {
+      active = segments[segments.size - 1]
+    }
+
+    val url = active.url?.toString() ?: return
+    if (url == lastNotifiedHlsSegmentUrl) {
+      return
+    }
+    lastNotifiedHlsSegmentUrl = url
+
+    eventEmitter.onTimedMetadata(
+      TimedMetadata(
+        metadata = arrayOf(
+          TimedMetadataObject(url, "rnv-manifest-segment-url"),
+          TimedMetadataObject(active.relativeStartTimeUs.toString(), "rnv-manifest-segment-start-us")
+        )
+      )
+    )
+  }
+
   private val analyticsListener = object: AnalyticsListener {
     override fun onBandwidthEstimate(
       eventTime: AnalyticsListener.EventTime,
@@ -467,6 +531,10 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   }
 
   private val playerListener = object : Player.Listener {
+    override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+      maybeNotifyHlsSegmentChange()
+    }
+
     override fun onPlaybackStateChanged(playbackState: Int) {
       val isPlayingUpdate = player.isPlaying
       val isBufferingUpdate = playbackState == Player.STATE_BUFFERING
@@ -570,6 +638,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
            bufferDuration = max(0.0, bufferedDurationSeconds - currentTimeSeconds)
          )
        )
+      maybeNotifyHlsSegmentChange()
     }
 
     override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) {
