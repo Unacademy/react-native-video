@@ -80,6 +80,16 @@ export const createSourceFromVideoConfig = (
     config.initializeOnCreation = true;
   }
 
+  if (
+    config.maxBitRate != null &&
+    config.bufferConfig?.preferredPeakBitRate == null
+  ) {
+    config.bufferConfig = {
+      ...config.bufferConfig,
+      preferredPeakBitRate: config.maxBitRate,
+    };
+  }
+
   try {
     return VideoPlayerSourceFactory.fromVideoConfig(
       config as NativeVideoConfig

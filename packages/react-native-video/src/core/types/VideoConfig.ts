@@ -61,6 +61,16 @@ export type VideoConfig = {
    * @default true
    */
   initializeOnCreation?: boolean;
+  /**
+   * Soft cap on video bitrate (bits per second).
+   *
+   * - **iOS**: forwarded to {@linkcode BufferConfig.preferredPeakBitRate} when that field is not set.
+   * - **Android**: forwarded the same way for JS config, and applied to ExoPlayer track
+   *   selection as max video bitrate (omit or use `0` for no limit).
+   *
+   * If you already set `bufferConfig.preferredPeakBitRate`, that value wins and `maxBitRate` is ignored.
+   */
+  maxBitRate?: number;
 };
 
 // @internal

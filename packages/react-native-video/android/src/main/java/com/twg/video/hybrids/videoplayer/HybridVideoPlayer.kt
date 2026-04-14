@@ -15,6 +15,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.extractor.metadata.emsg.EventMessage
 import androidx.media3.extractor.metadata.id3.Id3Frame
@@ -248,11 +249,17 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .forceEnableMediaCodecAsynchronousQueueing()
       .setEnableDecoderFallback(true)
 
+    val trackSelector = DefaultTrackSelector(context)
+    trackSelector.parameters = trackSelector.buildUponParameters()
+      .setMaxVideoBitrate(resolveMaxVideoBitrateBps())
+      .build()
+
     // Build the player with the LoadControl
     player = ExoPlayer.Builder(context)
       .setLoadControl(loadControl)
       .setLooper(Looper.getMainLooper())
       .setRenderersFactory(renderersFactory)
+      .setTrackSelector(trackSelector)
       .build()
 
     loadedWithSource = true
@@ -327,6 +334,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       runOnMainThreadSync {
         // Update source
         this.source = source
+        applyMaxVideoBitrateTrackConstraint()
         player.setMediaSource(hybridSource.mediaSource)
 
         // Prepare player
@@ -423,6 +431,21 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   private fun stopProgressUpdates() {
     progressRunnable?.let { progressHandler.removeCallbacks(it) }
     progressRunnable = null
+  }
+
+  private fun resolveMaxVideoBitrateBps(): Int {
+    val peak = source.config.bufferConfig?.preferredPeakBitRate ?: return Int.MAX_VALUE
+    if (peak <= 0.0) {
+      return Int.MAX_VALUE
+    }
+    return peak.toInt().coerceAtLeast(1)
+  }
+
+  private fun applyMaxVideoBitrateTrackConstraint() {
+    val selector = player.trackSelector as? DefaultTrackSelector ?: return
+    selector.parameters = selector.buildUponParameters()
+      .setMaxVideoBitrate(resolveMaxVideoBitrateBps())
+      .build()
   }
 
   private val analyticsListener = object: AnalyticsListener {
