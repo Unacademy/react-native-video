@@ -30,3 +30,9 @@ export type {
   VideoViewRef,
 } from './core/video-view/VideoViewProps';
 export { setAudioSessionManagementDisabled } from './core/utils/playerFactory';
+export {
+  mapTimedMetadataToManifestFileChange,
+  RNV_MANIFEST_SEGMENT_START_US,
+  RNV_MANIFEST_SEGMENT_URL,
+} from './core/utils/mapTimedMetadataToManifestFileChange';
+export type { ManifestFileChangePayload } from './core/utils/mapTimedMetadataToManifestFileChange';
