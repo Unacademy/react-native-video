@@ -2,6 +2,7 @@ import type { ViewProps } from 'react-native';
 import type {
   DirectEventHandler,
   Int32,
+  WithDefault,
 } from 'react-native/Libraries/Types/CodegenTypes';
 import codegenNativeComponent from 'react-native/Libraries/Utilities/codegenNativeComponent';
 
@@ -11,6 +12,11 @@ type OnNitroIdChangeEvent = Readonly<{
 
 export interface ViewViewNativeProps extends ViewProps {
   nitroId: Int32;
+  /**
+   * Chroma-key / green-screen pipeline (GL on Android, Core Image composition on iOS).
+   * @platform android, ios
+   */
+  useGreenScreen?: WithDefault<boolean, false>;
   onNitroIdChange?: DirectEventHandler<OnNitroIdChangeEvent>;
 }
 

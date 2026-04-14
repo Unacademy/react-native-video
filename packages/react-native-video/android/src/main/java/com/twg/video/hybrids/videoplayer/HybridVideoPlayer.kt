@@ -396,8 +396,20 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     VideoManager.addViewToPlayer(videoView, this)
 
     runOnMainThreadSync {
-      PlayerView.switchTargetView(player, currentPlayerView?.get(), videoView.playerView)
-      currentPlayerView = WeakReference(videoView.playerView)
+      if (videoView.useGreenScreen) {
+        currentPlayerView = null
+        val gl = videoView.ensureGreenScreenGlAttached()
+        gl.setSurfaceReadyCallback { surface ->
+          runOnMainThread {
+            player.setVideoSurface(surface)
+          }
+        }
+      } else {
+        videoView.greenScreenGlView?.setSurfaceReadyCallback(null)
+        player.clearVideoSurface()
+        PlayerView.switchTargetView(player, currentPlayerView?.get(), videoView.playerView)
+        currentPlayerView = WeakReference(videoView.playerView)
+      }
     }
   }
 

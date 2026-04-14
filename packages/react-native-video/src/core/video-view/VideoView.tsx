@@ -44,6 +44,7 @@ const updateProps = (manager: VideoViewViewManager, props: VideoViewProps) => {
   manager.resizeMode = props.resizeMode ?? 'none';
   manager.keepScreenAwake = props.keepScreenAwake ?? true;
   manager.surfaceType = props.surfaceType ?? 'surface';
+  // useGreenScreen is applied via Fabric native props (RNCVideoView), not Nitro VideoViewViewManager.
 };
 
 /**
@@ -65,6 +66,7 @@ const VideoView = React.forwardRef<VideoViewRef, VideoViewProps>(
       pictureInPicture = false,
       autoEnterPictureInPicture = false,
       resizeMode = 'none',
+      useGreenScreen = false,
       onPictureInPictureChange,
       onFullscreenChange,
       willEnterFullscreen,
@@ -313,6 +315,7 @@ const VideoView = React.forwardRef<VideoViewRef, VideoViewProps>(
         nitroId={nitroId}
         onNitroIdChange={onNitroIdChange}
         {...props}
+        useGreenScreen={useGreenScreen}
       />
     );
   }

@@ -9,6 +9,7 @@
 
 RCT_EXPORT_MODULE(RNCVideoView)
 RCT_EXPORT_VIEW_PROPERTY(nitroId, NSNumber)
+RCT_EXPORT_VIEW_PROPERTY(useGreenScreen, BOOL)
 RCT_EXPORT_VIEW_PROPERTY(onNitroIdChange, RCTDirectEventBlock)
 
 - (UIView *)view {

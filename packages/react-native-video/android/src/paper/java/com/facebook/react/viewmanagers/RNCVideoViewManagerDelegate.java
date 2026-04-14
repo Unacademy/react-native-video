@@ -25,6 +25,9 @@ public class RNCVideoViewManagerDelegate<T extends View, U extends BaseViewManag
       case "nitroId":
         mViewManager.setNitroId(view, value == null ? 0 : ((Double) value).intValue());
         break;
+      case "useGreenScreen":
+        mViewManager.setUseGreenScreen(view, value != null && (Boolean) value);
+        break;
       default:
         super.setProperty(view, propName, value);
     }

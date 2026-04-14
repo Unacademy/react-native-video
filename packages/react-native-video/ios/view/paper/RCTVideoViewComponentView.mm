@@ -42,4 +42,9 @@
   }
 }
 
+- (void)setUseGreenScreen:(BOOL)useGreenScreen {
+  _useGreenScreen = useGreenScreen;
+  [_view setUseGreenScreen:useGreenScreen];
+}
+
 @end

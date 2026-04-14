@@ -13,8 +13,12 @@ import UIKit
 @objc public class VideoComponentView: UIView {
   public weak var player: HybridVideoPlayerSpec? = nil {
     didSet {
-      guard let player = player as? HybridVideoPlayer else { return }
-      configureAVPlayerViewController(with: player.player)
+      guard let hybrid = player as? HybridVideoPlayer else {
+        (oldValue as? HybridVideoPlayer)?.greenScreenCompositionEnabled = false
+        return
+      }
+      configureAVPlayerViewController(with: hybrid.player)
+      hybrid.greenScreenCompositionEnabled = useGreenScreen
     }
   }
 
@@ -93,6 +97,13 @@ import UIKit
   @objc public var nitroId: NSNumber = -1 {
     didSet {
       VideoComponentView.globalViewsMap.setObject(self, forKey: nitroId)
+    }
+  }
+
+  /// Chroma-key / green-screen (Core Image video composition on the current `AVPlayerItem`).
+  @objc public var useGreenScreen: Bool = false {
+    didSet {
+      (player as? HybridVideoPlayer)?.greenScreenCompositionEnabled = useGreenScreen
     }
   }
 
@@ -178,7 +189,13 @@ import UIKit
         controller.didMove(toParent: parentVC)
         self.playerViewController = controller
       }
+
+      self.applyGreenScreenToCurrentHybridPlayer()
     }
+  }
+
+  private func applyGreenScreenToCurrentHybridPlayer() {
+    (player as? HybridVideoPlayer)?.greenScreenCompositionEnabled = useGreenScreen
   }
 
   // Helper to find nearest UIViewController
@@ -245,6 +262,9 @@ import UIKit
   }
 
   public func startPictureInPicture() throws {
+    if useGreenScreen {
+      throw VideoViewError.pictureInPictureNotSupported.error()
+    }
     guard let playerViewController else {
       throw VideoViewError.viewIsDeallocated.error()
     }

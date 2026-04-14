@@ -53,6 +53,10 @@ using namespace facebook::react;
     [self setNitroId:newViewProps.nitroId];
   }
 
+  if (oldViewProps.useGreenScreen != newViewProps.useGreenScreen) {
+    [_view setUseGreenScreen:newViewProps.useGreenScreen];
+  }
+
   [super updateProps:props oldProps:oldProps];
 }
 

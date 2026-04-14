@@ -40,6 +40,7 @@ import com.twg.video.core.utils.PictureInPictureUtils.createDisabledPictureInPic
 import com.twg.video.core.utils.SmallVideoPlayerOptimizer
 import com.twg.video.R.layout.player_view_surface
 import com.twg.video.R.layout.player_view_texture
+import com.twg.video.view.greenscreen.GLTextureView
 
 @UnstableApi
 class VideoView @JvmOverloads constructor(
@@ -103,8 +104,9 @@ class VideoView @JvmOverloads constructor(
         removeView(playerView)
         playerView.player = null
         playerView = createPlayerView()
+        addView(playerView, 0)
         playerView.player = hybridPlayer?.player
-        addView(playerView)
+        syncGreenScreenVisibility()
       }
     }
 
@@ -128,6 +130,25 @@ class VideoView @JvmOverloads constructor(
 
   var onNitroIdChange: ((Int?) -> Unit)? = null
   var playerView = createPlayerView()
+
+  private var greenScreenWrapper: FrameLayout? = null
+  var greenScreenGlView: GLTextureView? = null
+    private set
+
+  /**
+   * Renders video through a GL chroma-key pipeline (legacy “green screen” mode).
+   * PiP / fullscreen are not supported in this mode.
+   */
+  var useGreenScreen: Boolean = false
+    set(value) {
+      if (field == value) return
+      field = value
+      runOnMainThread {
+        syncGreenScreenVisibility()
+        hybridPlayer?.movePlayerToVideoView(this)
+      }
+    }
+
   var isInFullscreen: Boolean = false
     set(value) {
       if (value != field) {
@@ -165,6 +186,39 @@ class VideoView @JvmOverloads constructor(
     addView(playerView)
     setupFullscreenButton()
     applyResizeMode()
+  }
+
+  private fun syncGreenScreenVisibility() {
+    if (useGreenScreen) {
+      ensureGreenScreenOverlay()
+      greenScreenWrapper?.visibility = View.VISIBLE
+      playerView.visibility = View.GONE
+    } else {
+      greenScreenWrapper?.visibility = View.GONE
+      playerView.visibility = View.VISIBLE
+    }
+  }
+
+  internal fun ensureGreenScreenGlAttached(): GLTextureView {
+    ensureGreenScreenOverlay()
+    return greenScreenGlView!!
+  }
+
+  private fun ensureGreenScreenOverlay() {
+    if (greenScreenWrapper != null) {
+      return
+    }
+    val wrap = FrameLayout(context).apply {
+      layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+    }
+    val gl = GLTextureView(context).apply {
+      layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
+      isOpaque = false
+    }
+    greenScreenGlView = gl
+    wrap.addView(gl)
+    greenScreenWrapper = wrap
+    addView(wrap)
   }
 
   private fun applyResizeMode() {
@@ -353,14 +407,14 @@ class VideoView @JvmOverloads constructor(
     if (isInFullscreen) {
       Log.d("ReactNativeVideo", "PiP entered while in fullscreen - skipping reparent to root for nitroId: $nitroId")
       // Still hide the views we captured, but don't move the player view
-      rootContentViews.forEach { view -> view.visibility = GONE }
+      rootContentViews.forEach { view -> view.visibility = View.GONE }
       movedToRootForPiP = false
       return
     }
 
     (playerView.parent as? ViewGroup)?.removeView(playerView)
 
-    rootContentViews.forEach { view -> view.visibility = GONE }
+    rootContentViews.forEach { view -> view.visibility = View.GONE }
 
     rootContent.addView(
       playerView,
@@ -413,6 +467,9 @@ class VideoView @JvmOverloads constructor(
   }
 
   fun enterPictureInPicture() {
+    if (useGreenScreen) {
+      return
+    }
     if (isInPictureInPicture || isInFullscreen || !pictureInPictureEnabled) {
       return
     }
@@ -426,6 +483,9 @@ class VideoView @JvmOverloads constructor(
   }
 
   internal fun internalEnterPictureInPicture(): Boolean {
+    if (useGreenScreen) {
+      return false
+    }
     if (isInPictureInPicture || isInFullscreen || !pictureInPictureEnabled) {
       return false
     }

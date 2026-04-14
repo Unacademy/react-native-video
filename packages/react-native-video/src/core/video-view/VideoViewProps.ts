@@ -50,6 +50,14 @@ export interface VideoViewProps extends Partial<VideoViewEvents>, ViewProps {
    * @platform android
    */
   surfaceType?: SurfaceType;
+
+  /**
+   * Renders video with chroma-key transparency (green screen). Android uses GL; iOS uses a Core Image video composition.
+   * Picture-in-picture is disabled while this is enabled.
+   *
+   * @platform android, ios
+   */
+  useGreenScreen?: boolean;
 }
 
 export interface VideoViewRef {

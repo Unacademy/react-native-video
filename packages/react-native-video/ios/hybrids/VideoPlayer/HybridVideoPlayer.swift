@@ -28,6 +28,26 @@ class HybridVideoPlayer: HybridVideoPlayerSpec, NativeVideoPlayerSpec {
       if let bufferConfig = source.config.bufferConfig {
         playerItem?.setBufferConfig(config: bufferConfig)
       }
+      applyGreenScreenVideoCompositionIfNeeded()
+    }
+  }
+
+  /// When true, applies a chroma-key style `AVVideoComposition` to the current item (driven by `VideoComponentView`).
+  var greenScreenCompositionEnabled: Bool = false {
+    didSet {
+      applyGreenScreenVideoCompositionIfNeeded()
+    }
+  }
+
+  private func applyGreenScreenVideoCompositionIfNeeded() {
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      guard let item = self.playerItem else { return }
+      if self.greenScreenCompositionEnabled {
+        item.videoComposition = GreenScreenVideoComposition.make(for: item.asset)
+      } else {
+        item.videoComposition = nil
+      }
     }
   }
   var playerObserver: VideoPlayerObserver?

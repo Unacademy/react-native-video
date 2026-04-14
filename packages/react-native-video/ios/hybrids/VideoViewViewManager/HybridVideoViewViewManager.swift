@@ -205,6 +205,9 @@ class HybridVideoViewViewManager: HybridVideoViewViewManagerSpec {
   }
   
   func canEnterPictureInPicture() -> Bool {
+    if view?.useGreenScreen == true {
+      return false
+    }
     return AVPictureInPictureController.isPictureInPictureSupported()
   }
   

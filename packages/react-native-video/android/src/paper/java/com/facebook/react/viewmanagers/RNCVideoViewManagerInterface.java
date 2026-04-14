@@ -13,4 +13,6 @@ import android.view.View;
 
 public interface RNCVideoViewManagerInterface<T extends View> {
   void setNitroId(T view, int value);
+
+  void setUseGreenScreen(T view, boolean value);
 }

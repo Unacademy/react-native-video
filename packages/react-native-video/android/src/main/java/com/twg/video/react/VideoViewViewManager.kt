@@ -45,6 +45,11 @@ class VideoViewViewManager : SimpleViewManager<VideoView>(), RNCVideoViewManager
     view.nitroId = nitroId
   }
 
+  @ReactProp(name = "useGreenScreen", defaultBoolean = false)
+  override fun setUseGreenScreen(view: VideoView, useGreenScreen: Boolean) {
+    view.useGreenScreen = useGreenScreen
+  }
+
   public override fun createViewInstance(reactContext: ThemedReactContext): VideoView {
     return VideoView(reactContext)
   }

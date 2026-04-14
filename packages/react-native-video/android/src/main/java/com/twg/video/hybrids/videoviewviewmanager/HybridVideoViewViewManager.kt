@@ -37,6 +37,9 @@ class HybridVideoViewViewManager(nitroId: Int): HybridVideoViewViewManagerSpec()
     }
 
   override fun canEnterPictureInPicture(): Boolean {
+    if (videoView.get()?.useGreenScreen == true) {
+      return false
+    }
     return PictureInPictureUtils.canEnterPictureInPicture()
   }
 
