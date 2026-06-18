@@ -32,6 +32,8 @@ export type {
 export { setAudioSessionManagementDisabled } from './core/utils/playerFactory';
 export {
   mapTimedMetadataToManifestFileChange,
+  legacyFilenameFromSegmentUrl,
+  RNV_MANIFEST_DURATION_US,
   RNV_MANIFEST_SEGMENT_START_US,
   RNV_MANIFEST_SEGMENT_URL,
 } from './core/utils/mapTimedMetadataToManifestFileChange';

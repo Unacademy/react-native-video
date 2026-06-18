@@ -514,12 +514,19 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     }
     lastNotifiedHlsSegmentUrl = url
 
+    val metadataEntries = mutableListOf(
+      TimedMetadataObject(url, "rnv-manifest-segment-url"),
+      TimedMetadataObject(active.relativeStartTimeUs.toString(), "rnv-manifest-segment-start-us"),
+    )
+    if (playlist.durationUs != C.TIME_UNSET) {
+      metadataEntries.add(
+        TimedMetadataObject(playlist.durationUs.toString(), "rnv-manifest-duration-us")
+      )
+    }
+
     eventEmitter.onTimedMetadata(
       TimedMetadata(
-        metadata = arrayOf(
-          TimedMetadataObject(url, "rnv-manifest-segment-url"),
-          TimedMetadataObject(active.relativeStartTimeUs.toString(), "rnv-manifest-segment-start-us")
-        )
+        metadata = metadataEntries.toTypedArray()
       )
     )
   }
