@@ -32,7 +32,8 @@ export function legacyFilenameFromSegmentUrl(url: string): string {
   try {
     if (url.includes('ts')) {
       const urlSplit = url.split('-');
-      return urlSplit[urlSplit.length - 1].replace('.ts', '');
+      const segment = urlSplit[urlSplit.length - 1];
+      return segment ? segment.replace('.ts', '') : url;
     }
     if (url.includes('m4s')) {
       return url.replace('.m4s', '');
