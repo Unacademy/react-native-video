@@ -72,6 +72,7 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     private static final String PROP_PLAY_IN_BACKGROUND = "playInBackground";
     private static final String PROP_CONTENT_START_TIME = "contentStartTime";
     private static final String PROP_DISABLE_FOCUS = "disableFocus";
+    private static final String PROP_LIVE = "live";
     private static final String PROP_DISABLE_BUFFERING = "disableBuffering";
     private static final String PROP_DISABLE_DISCONNECT_ERROR = "disableDisconnectError";
     private static final String PROP_FULLSCREEN = "fullscreen";
@@ -315,6 +316,12 @@ public class ReactExoplayerViewManager extends ViewGroupManager<ReactExoplayerVi
     public void setDisableFocus(final ReactExoplayerView videoView, final boolean disableFocus) {
         videoView.setDisableFocus(disableFocus);
     }
+
+    @ReactProp(name = PROP_LIVE)
+    public void setLive(final ReactExoplayerView videoView, @Nullable ReadableMap live) {
+        videoView.setLiveConfiguration(live);
+    }
+
     @ReactProp(name = PROP_BACK_BUFFER_DURATION_MS, defaultInt = 0)
     public void setBackBufferDurationMs(final ReactExoplayerView videoView, final int backBufferDurationMs) {
         videoView.setBackBufferDurationMs(backBufferDurationMs);

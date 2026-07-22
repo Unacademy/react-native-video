@@ -42,6 +42,7 @@ import com.google.android.exoplayer2.drm.MediaDrmCallbackException;
 import com.google.android.exoplayer2.drm.DrmSession.DrmSessionException;
 import com.google.android.exoplayer2.drm.DrmSessionManagerProvider;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.DefaultLivePlaybackSpeedControl;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.drm.ExoMediaDrm;
 import com.google.android.exoplayer2.PlaybackException;
@@ -120,6 +121,7 @@ import com.google.android.exoplayer2.ExoPlayer;
 
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.annotation.Nullable;
 
 @SuppressLint("ViewConstructor")
 class ReactExoplayerView extends FrameLayout implements
@@ -222,6 +224,9 @@ class ReactExoplayerView extends FrameLayout implements
     private String drmLicenseUrl = null;
     private String[] drmLicenseHeader = null;
     private boolean controls;
+    // Opt-in: when set, stops Exo growing target live offset after each rebuffer (lag creep).
+    // Null = Exo default (VOD / callers that omit `live` unchanged).
+    private Long liveTargetOffsetIncrementOnRebufferMs = null;
     // \ End props
 
     // React
@@ -736,11 +741,18 @@ public boolean shouldContinueLoading(long playbackPositionUs, long bufferedDurat
       new DefaultRenderersFactory(getContext())
         .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
     .setEnableDecoderFallback(true);
-    player = new ExoPlayer.Builder(getContext(), renderersFactory)
+    ExoPlayer.Builder playerBuilder = new ExoPlayer.Builder(getContext(), renderersFactory)
       .setTrackSelector(self.trackSelector)
       .setBandwidthMeter(bandwidthMeter)
-      .setLoadControl(loadControl)
-      .build();
+      .setLoadControl(loadControl);
+    // Only override live speed control when JS opts in — preserves default for VOD/replay.
+    if (liveTargetOffsetIncrementOnRebufferMs != null) {
+      playerBuilder.setLivePlaybackSpeedControl(
+        new DefaultLivePlaybackSpeedControl.Builder()
+          .setTargetLiveOffsetIncrementOnRebufferMs(liveTargetOffsetIncrementOnRebufferMs)
+          .build());
+    }
+    player = playerBuilder.build();
     player.addListener(self);
     exoPlayerView.setPlayer(player);
     audioBecomingNoisyReceiver.setListener(self);
@@ -1996,6 +2008,18 @@ public boolean shouldContinueLoading(long playbackPositionUs, long bufferedDurat
 
     public void setDisableFocus(boolean disableFocus) {
         this.disableFocus = disableFocus;
+    }
+
+    /**
+     * Opt-in live lag control. Only reads targetLiveOffsetIncrementOnRebufferMs.
+     * Omit / null = no change to Exo defaults (safe for VOD and upgrade-player follow-ups).
+     */
+    public void setLiveConfiguration(@Nullable ReadableMap live) {
+        if (live == null || !live.hasKey("targetLiveOffsetIncrementOnRebufferMs")) {
+            liveTargetOffsetIncrementOnRebufferMs = null;
+            return;
+        }
+        liveTargetOffsetIncrementOnRebufferMs = (long) live.getDouble("targetLiveOffsetIncrementOnRebufferMs");
     }
 
       public void setBackBufferDurationMs(int backBufferDurationMs) {

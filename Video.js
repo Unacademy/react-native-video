@@ -478,6 +478,9 @@ Video.propTypes = {
     bufferForPlaybackMs: PropTypes.number,
     bufferForPlaybackAfterRebufferMs: PropTypes.number,
   }),
+  live: PropTypes.shape({
+    targetLiveOffsetIncrementOnRebufferMs: PropTypes.number,
+  }),
   muxConfig: PropTypes.shape({
     muxConfigKey: PropTypes.string,
     muxConfigVideoId: PropTypes.string,
