@@ -1,0 +1,18 @@
+/**
+ * Custom CSS for this project.
+ * 
+ * We import base styles from @widlarzgroup/docusaurus-ui which:
+ * - Overrides default Infima variables with our custom design system
+ * - Provides new CSS variables for colors (--color-accent-*, --color-secondary-*, etc.)
+ * - Adds custom component styles and utilities
+ * 
+ * You can further customize any CSS variables here - they will take
+ * precedence over both Infima defaults and the imported package styles.
+ */
+@import '@widlarzgroup/docusaurus-ui/css/custom.css';
+
+/* Add your custom overrides below */
+
+:root {
+    --color-dark: #0f0f0f;
+}
