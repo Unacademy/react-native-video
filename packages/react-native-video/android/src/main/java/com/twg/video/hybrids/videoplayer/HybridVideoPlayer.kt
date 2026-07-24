@@ -229,6 +229,13 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   )
 
   private fun initializePlayer() {
+    // Duplicate initialize (constructor initializeOnCreation + later initialize/remount)
+    // was tearing down a READY live player and restarting near playlist HOLD-BACK (~4s).
+    if (loadedWithSource) {
+      Log.i(LIVE_DIAG_TAG, "reason=initialize_skipped alreadyLoaded=true")
+      return
+    }
+
     if (NitroModules.applicationContext == null) {
       throw LibraryError.ApplicationContextNotFound
     }
@@ -277,8 +284,12 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .setTrackSelector(trackSelector)
 
     if (bufferConfig?.livePlayback != null) {
+      // On rebuffer, nudge target +1s (capped by MediaItem maxOffsetMs) to escape tip thrash,
+      // then speed control pulls back toward targetOffset when buffer is healthy.
       playerBuilder.setLivePlaybackSpeedControl(
-        DefaultLivePlaybackSpeedControl.Builder().build()
+        DefaultLivePlaybackSpeedControl.Builder()
+          .setTargetLiveOffsetIncrementOnRebufferMs(1000L)
+          .build()
       )
     }
 
@@ -474,9 +485,10 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       val currentMs = player.currentPosition
       val bufferedMs = player.bufferedPosition
       val aheadMs = max(0L, bufferedMs - currentMs)
+      // Player.currentLiveOffset is already milliseconds (not us).
       val liveOffsetMs = try {
-        val offsetUs = player.currentLiveOffset
-        if (offsetUs == C.TIME_UNSET) -1L else offsetUs / 1000L
+        val offsetMs = player.currentLiveOffset
+        if (offsetMs == C.TIME_UNSET) -1L else offsetMs
       } catch (_: Throwable) {
         -1L
       }
