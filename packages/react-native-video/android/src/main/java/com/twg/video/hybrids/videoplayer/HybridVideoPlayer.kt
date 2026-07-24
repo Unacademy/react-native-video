@@ -257,8 +257,9 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .build()
 
     val renderersFactory = DefaultRenderersFactory(context)
-      // Use Media3 defaults for codec queueing — forced async queueing caused PPT/stutter
-      // on some 16KB / OEM devices while sitting near the live tip.
+      // Keep async MediaCodec queueing — required for reliable video surface on this fork;
+      // removing it caused blank video with audio-only on some devices.
+      .forceEnableMediaCodecAsynchronousQueueing()
       .setEnableDecoderFallback(true)
 
     val trackSelector = DefaultTrackSelector(context)
