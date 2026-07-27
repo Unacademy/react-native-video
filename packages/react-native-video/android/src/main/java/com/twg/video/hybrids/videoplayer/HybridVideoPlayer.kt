@@ -13,6 +13,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
@@ -224,6 +225,11 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   )
 
   private fun initializePlayer() {
+    // Avoid double-init tearing down an already-prepared live player.
+    if (loadedWithSource) {
+      return
+    }
+
     if (NitroModules.applicationContext == null) {
       throw LibraryError.ApplicationContextNotFound
     }
@@ -260,13 +266,22 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .setMaxVideoBitrate(resolveMaxVideoBitrateBps())
       .build()
 
-    // Build the player with the LoadControl
-    player = ExoPlayer.Builder(context)
+    val playerBuilder = ExoPlayer.Builder(context)
       .setLoadControl(loadControl)
       .setLooper(Looper.getMainLooper())
       .setRenderersFactory(renderersFactory)
       .setTrackSelector(trackSelector)
-      .build()
+
+    // LLHLS passes livePlayback so Media3 can hold a stable live offset.
+    if (bufferConfig?.livePlayback != null) {
+      playerBuilder.setLivePlaybackSpeedControl(
+        DefaultLivePlaybackSpeedControl.Builder()
+          .setTargetLiveOffsetIncrementOnRebufferMs(1000L)
+          .build()
+      )
+    }
+
+    player = playerBuilder.build()
 
     loadedWithSource = true
 
