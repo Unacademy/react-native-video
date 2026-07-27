@@ -82,8 +82,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   // Time updates
   private val progressHandler = Handler(Looper.getMainLooper())
   private var progressRunnable: Runnable? = null
-  private var lastLiveDiagAtMs: Long = 0L
-  private var lastLoggedPlaybackState: Int = Player.STATE_IDLE
 
   // Listeners
   private val audioFocusChangedListener = OnAudioFocusChangedListener()
@@ -101,8 +99,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   private companion object {
     const val PROGRESS_UPDATE_INTERVAL_MS = 250L
     private const val TAG = "HybridVideoPlayer"
-    private const val LIVE_DIAG_TAG = "RNVLiveDiag"
-    private const val LIVE_DIAG_INTERVAL_MS = 2000L
     private const val DEFAULT_MIN_BUFFER_DURATION_MS = 5000
     private const val DEFAULT_MAX_BUFFER_DURATION_MS = 10000
     private const val DEFAULT_BUFFER_FOR_PLAYBACK_DURATION_MS = 1000
@@ -229,10 +225,8 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   )
 
   private fun initializePlayer() {
-    // Duplicate initialize (constructor initializeOnCreation + later initialize/remount)
-    // was tearing down a READY live player and restarting near playlist HOLD-BACK (~4s).
+    // Avoid double-init tearing down an already-prepared live player.
     if (loadedWithSource) {
-      Log.i(LIVE_DIAG_TAG, "reason=initialize_skipped alreadyLoaded=true")
       return
     }
 
@@ -264,8 +258,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .build()
 
     val renderersFactory = DefaultRenderersFactory(context)
-      // Keep async MediaCodec queueing — required for reliable video surface on this fork;
-      // removing it caused blank video with audio-only on some devices.
       .forceEnableMediaCodecAsynchronousQueueing()
       .setEnableDecoderFallback(true)
 
@@ -274,18 +266,14 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .setMaxVideoBitrate(resolveMaxVideoBitrateBps())
       .build()
 
-    // When JS opts into livePlayback (LLHLS), attach DefaultLivePlaybackSpeedControl so
-    // LiveConfiguration catch-up speeds apply. Offset growth stays at Media3 default +500ms;
-    // LiveConfiguration max/target offsets bound tip starvation and lag.
     val playerBuilder = ExoPlayer.Builder(context)
       .setLoadControl(loadControl)
       .setLooper(Looper.getMainLooper())
       .setRenderersFactory(renderersFactory)
       .setTrackSelector(trackSelector)
 
+    // LLHLS passes livePlayback so Media3 can hold a stable live offset.
     if (bufferConfig?.livePlayback != null) {
-      // On rebuffer, nudge target +1s (capped by MediaItem maxOffsetMs) to escape tip thrash,
-      // then speed control pulls back toward targetOffset when buffer is healthy.
       playerBuilder.setLivePlaybackSpeedControl(
         DefaultLivePlaybackSpeedControl.Builder()
           .setTargetLiveOffsetIncrementOnRebufferMs(1000L)
@@ -305,7 +293,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     val sourceType = if (hybridSource.uri.startsWith("http")) SourceType.NETWORK else SourceType.LOCAL
     eventEmitter.onLoadStart(onLoadStartData(sourceType = sourceType, source = hybridSource))
     status = VideoPlayerStatus.LOADING
-    logLiveDiagnostics("initialize")
     startProgressUpdates()
   }
 
@@ -470,70 +457,11 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
             )
           )
           maybeNotifyHlsSegmentChange()
-          maybeLogLiveDiagnosticsPeriodic()
           progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
         }
       }
     }
     progressHandler.post(progressRunnable ?: return)
-  }
-
-  /** RCA logs for tip-starvation vs smooth playback. Filter: adb logcat -s RNVLiveDiag */
-  private fun logLiveDiagnostics(reason: String) {
-    try {
-      val state = player.playbackState
-      val currentMs = player.currentPosition
-      val bufferedMs = player.bufferedPosition
-      val aheadMs = max(0L, bufferedMs - currentMs)
-      // Player.currentLiveOffset is already milliseconds (not us).
-      val liveOffsetMs = try {
-        val offsetMs = player.currentLiveOffset
-        if (offsetMs == C.TIME_UNSET) -1L else offsetMs
-      } catch (_: Throwable) {
-        -1L
-      }
-      val format = player.videoFormat
-      Log.i(
-        LIVE_DIAG_TAG,
-        "reason=$reason state=${playbackStateName(state)} playing=${player.isPlaying} " +
-          "playWhenReady=${player.playWhenReady} posMs=$currentMs bufferedMs=$bufferedMs " +
-          "aheadMs=$aheadMs liveOffsetMs=$liveOffsetMs " +
-          "speed=${player.playbackParameters.speed} " +
-          "format=${format?.width}x${format?.height}@${format?.bitrate} " +
-          "livePlayback=${bufferConfig?.livePlayback != null}"
-      )
-      lastLoggedPlaybackState = state
-      lastLiveDiagAtMs = android.os.SystemClock.elapsedRealtime()
-    } catch (t: Throwable) {
-      Log.w(LIVE_DIAG_TAG, "logLiveDiagnostics failed: ${t.message}")
-    }
-  }
-
-  private fun maybeLogLiveDiagnosticsPeriodic() {
-    val now = android.os.SystemClock.elapsedRealtime()
-    val aheadMs = max(0L, player.bufferedPosition - player.currentPosition)
-    val stateChanged = player.playbackState != lastLoggedPlaybackState
-    val lowBuffer = aheadMs < 2500L
-    val due = now - lastLiveDiagAtMs >= LIVE_DIAG_INTERVAL_MS
-    if (stateChanged || (due && (lowBuffer || player.playbackState == Player.STATE_BUFFERING))) {
-      logLiveDiagnostics(
-        when {
-          stateChanged -> "state"
-          lowBuffer -> "lowBuffer"
-          else -> "periodic"
-        }
-      )
-    }
-  }
-
-  private fun playbackStateName(state: Int): String {
-    return when (state) {
-      Player.STATE_IDLE -> "IDLE"
-      Player.STATE_BUFFERING -> "BUFFERING"
-      Player.STATE_READY -> "READY"
-      Player.STATE_ENDED -> "ENDED"
-      else -> "UNKNOWN($state)"
-    }
   }
 
   private fun stopProgressUpdates() {
@@ -634,20 +562,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         )
       )
     }
-
-    override fun onDroppedVideoFrames(
-      eventTime: AnalyticsListener.EventTime,
-      droppedFrames: Int,
-      elapsedMs: Long
-    ) {
-      if (droppedFrames > 0) {
-        Log.i(
-          LIVE_DIAG_TAG,
-          "droppedFrames=$droppedFrames elapsedMs=$elapsedMs " +
-            "aheadMs=${max(0L, player.bufferedPosition - player.currentPosition)}"
-        )
-      }
-    }
   }
 
   private val playerListener = object : Player.Listener {
@@ -665,8 +579,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
           isBuffering = isBufferingUpdate
         )
       )
-
-      logLiveDiagnostics("onPlaybackStateChanged")
 
       when (playbackState) {
         Player.STATE_IDLE -> {
