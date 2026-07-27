@@ -342,28 +342,24 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   }
 
   /**
-   * For LLHLS (`bufferConfig.livePlayback`), never allow seeks onto the absolute
-   * live tip. Plain `coerceIn(0, duration)` was clamping JS soft-edge seeks
-   * (duration - targetOffset) up to `duration` when player.duration briefly lags
-   * seekableDuration — aheadMs≈0 → BUFFERING/READY freeze loop on 16KB.
+   * Opt-in via `bufferConfig.livePlayback` only (LLHLS live). Do not key off
+   * `isCurrentMediaItemLive` — that would also soften seeks for traditional
+   * Live.js HLS DVR / other live playlists that must scrub to duration.
+   *
+   * Plain `coerceIn(0, duration)` was promoting JS soft-edge seeks up to the
+   * absolute tip when player.duration lagged seekableDuration → aheadMs≈0
+   * BUFFERING/READY freeze on 16KB.
    */
   private fun clampSeekTimeSeconds(time: Double): Double {
     val dur = duration
     if (!dur.isFinite() || dur <= 0.0) {
       return time
     }
-    val softLive =
-      bufferConfig?.livePlayback != null ||
-        try {
-          player.isCurrentMediaItemLive
-        } catch (_: Throwable) {
-          false
-        }
-    if (!softLive) {
+    val livePlayback = bufferConfig?.livePlayback
+    if (livePlayback == null) {
       return time.coerceIn(0.0, dur)
     }
-    val cushionSec =
-      ((bufferConfig?.livePlayback?.targetOffsetMs ?: 2000.0) / 1000.0).coerceAtLeast(1.5)
+    val cushionSec = ((livePlayback.targetOffsetMs ?: 2000.0) / 1000.0).coerceAtLeast(1.5)
     val maxSeek = (dur - cushionSec).coerceAtLeast(0.0)
     return time.coerceIn(0.0, maxSeek)
   }
