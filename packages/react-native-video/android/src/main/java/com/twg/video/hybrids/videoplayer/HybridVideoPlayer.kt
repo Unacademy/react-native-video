@@ -331,11 +331,41 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   }
 
   override fun seekBy(time: Double) {
-    currentTime = (currentTime + time).coerceIn(0.0, duration)
+    seekTo(currentTime + time)
   }
 
   override fun seekTo(time: Double) {
-    currentTime = time.coerceIn(0.0, duration)
+    if (!time.isFinite() || time < 0.0) {
+      return
+    }
+    currentTime = clampSeekTimeSeconds(time)
+  }
+
+  /**
+   * For LLHLS (`bufferConfig.livePlayback`), never allow seeks onto the absolute
+   * live tip. Plain `coerceIn(0, duration)` was clamping JS soft-edge seeks
+   * (duration - targetOffset) up to `duration` when player.duration briefly lags
+   * seekableDuration — aheadMs≈0 → BUFFERING/READY freeze loop on 16KB.
+   */
+  private fun clampSeekTimeSeconds(time: Double): Double {
+    val dur = duration
+    if (!dur.isFinite() || dur <= 0.0) {
+      return time
+    }
+    val softLive =
+      bufferConfig?.livePlayback != null ||
+        try {
+          player.isCurrentMediaItemLive
+        } catch (_: Throwable) {
+          false
+        }
+    if (!softLive) {
+      return time.coerceIn(0.0, dur)
+    }
+    val cushionSec =
+      ((bufferConfig?.livePlayback?.targetOffsetMs ?: 2000.0) / 1000.0).coerceAtLeast(1.5)
+    val maxSeek = (dur - cushionSec).coerceAtLeast(0.0)
+    return time.coerceIn(0.0, maxSeek)
   }
 
   override fun replaceSourceAsync(source: Variant_NullType_HybridVideoPlayerSourceSpec?): Promise<Unit> {
