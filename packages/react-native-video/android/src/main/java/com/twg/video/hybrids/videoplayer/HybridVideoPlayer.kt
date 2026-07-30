@@ -677,6 +677,24 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     }
 
     override fun onPlayerError(error: PlaybackException) {
+      // Google live recovery: fall behind window → seek to default live position, not remount-first.
+      // Remount stays as JS last resort when this path cannot recover.
+      if (
+        error.errorCode == PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW &&
+        bufferConfig?.livePlayback != null
+      ) {
+        Log.w(TAG, "BehindLiveWindow — seekToDefaultPosition + prepare")
+        try {
+          player.seekToDefaultPosition()
+          player.prepare()
+          player.playWhenReady = true
+          status = VideoPlayerStatus.LOADING
+          startProgressUpdates()
+          return
+        } catch (e: Exception) {
+          Log.e(TAG, "BehindLiveWindow recovery failed", e)
+        }
+      }
       status = VideoPlayerStatus.ERROR
       stopProgressUpdates()
     }

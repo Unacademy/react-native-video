@@ -233,6 +233,8 @@ class VideoView @JvmOverloads constructor(
     }.apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       setShutterBackgroundColor(Color.TRANSPARENT)
+      // Keep last frame on player reset/remount instead of black shutter (Media3 PlayerView API).
+      setKeepContentOnPlayerReset(true)
       setShowSubtitleButton(true)
       useController = false
 
