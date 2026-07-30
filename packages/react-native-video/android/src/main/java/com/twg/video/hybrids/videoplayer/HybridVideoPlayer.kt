@@ -437,6 +437,9 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     VideoManager.addViewToPlayer(videoView, this)
 
     runOnMainThreadSync {
+      // LLHLS tip only (livePlayback opt-in): keep last frame on reset. Replay/VOD stay default.
+      videoView.playerView.setKeepContentOnPlayerReset(bufferConfig?.livePlayback != null)
+
       if (videoView.useGreenScreen) {
         currentPlayerView = null
         val gl = videoView.ensureGreenScreenGlAttached()

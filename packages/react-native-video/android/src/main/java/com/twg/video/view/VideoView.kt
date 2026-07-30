@@ -233,8 +233,9 @@ class VideoView @JvmOverloads constructor(
     }.apply {
       layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
       setShutterBackgroundColor(Color.TRANSPARENT)
-      // Keep last frame on player reset/remount instead of black shutter (Media3 PlayerView API).
-      setKeepContentOnPlayerReset(true)
+      // Default false. LLHLS live opt-in sets true in HybridVideoPlayer.movePlayerToVideoView
+      // when bufferConfig.livePlayback is present — do not change replay/VOD/courses.
+      setKeepContentOnPlayerReset(false)
       setShowSubtitleButton(true)
       useController = false
 
