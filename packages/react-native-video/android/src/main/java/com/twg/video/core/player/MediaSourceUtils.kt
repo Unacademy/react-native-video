@@ -43,7 +43,13 @@ fun buildMediaSource(context: Context, source: HybridVideoPlayerSource, mediaIte
       DashMediaSource.Factory(dataSourceFactory)
     }
     C.CONTENT_TYPE_HLS -> {
-      HlsMediaSource.Factory(dataSourceFactory)
+      val hlsFactory = HlsMediaSource.Factory(dataSourceFactory)
+      // Tip LLHLS (livePlayback): allow chunkless prep so the player can start without waiting
+      // on the first media segment when the multivariant playlist already carries codecs.
+      if (source.config.bufferConfig?.livePlayback != null) {
+        hlsFactory.setAllowChunklessPreparation(true)
+      }
+      hlsFactory
     }
     C.CONTENT_TYPE_OTHER -> {
       DefaultMediaSourceFactory(context)

@@ -2,6 +2,7 @@ package com.margelo.nitro.video
 
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.media3.common.C
 import androidx.media3.common.Metadata
@@ -82,6 +83,9 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   // Time updates
   private val progressHandler = Handler(Looper.getMainLooper())
   private var progressRunnable: Runnable? = null
+  /** Bumped on stop/release so an in-flight progress tick cannot re-schedule after stop. */
+  private var progressGeneration = 0
+  private var playerReleased = false
 
   // Listeners
   private val audioFocusChangedListener = OnAudioFocusChangedListener()
@@ -96,6 +100,15 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   /** Last HLS segment URL reported through onTimedMetadata (legacy manifestFileChange-style hook). */
   private var lastNotifiedHlsSegmentUrl: String? = null
 
+  /** Emit onLoad only on first READY after prepare/source change — not on every rebuffer READY. */
+  private var hasEmittedOnLoad = false
+
+  // Tip LLHLS only (livePlayback): detect frozen playhead with healthy forward buffer and unstick
+  // via seekToDefaultPosition. Soft JS GO LIVE alone left a ~2s hitch every ~20s.
+  private var lastLiveProgressPosMs = C.TIME_UNSET
+  private var lastLiveProgressWallMs = 0L
+  private var lastLiveDefaultSeekAtMs = 0L
+
   private companion object {
     const val PROGRESS_UPDATE_INTERVAL_MS = 250L
     private const val TAG = "HybridVideoPlayer"
@@ -104,6 +117,11 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     private const val DEFAULT_BUFFER_FOR_PLAYBACK_DURATION_MS = 1000
     private const val DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_DURATION_MS = 2000
     private const val DEFAULT_BACK_BUFFER_DURATION_MS = 0
+    /** Playhead unchanged this long with ≥1s buffered → tip live unstick. */
+    private const val LIVE_HEALTHY_BUF_FREEZE_MS = 500L
+    private const val LIVE_HEALTHY_BUF_MIN_AHEAD_MS = 1000L
+    /** Do not spam seekToDefaultPosition while thrash continues. */
+    private const val LIVE_DEFAULT_SEEK_COOLDOWN_MS = 5000L
   }
 
   override var status: VideoPlayerStatus = VideoPlayerStatus.IDLE
@@ -258,8 +276,13 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .build()
 
     val renderersFactory = DefaultRenderersFactory(context)
-      .forceEnableMediaCodecAsynchronousQueueing()
       .setEnableDecoderFallback(true)
+    // Tip LLHLS only: async MediaCodec queueing has caused BUFFERING↔READY thrash with a
+    // healthy forward buffer while the playhead stays frozen (~2 min into class on device).
+    // Keep async queueing for replay/VOD/regular live (no livePlayback).
+    if (bufferConfig?.livePlayback == null) {
+      renderersFactory.forceEnableMediaCodecAsynchronousQueueing()
+    }
 
     val trackSelector = DefaultTrackSelector(context)
     trackSelector.parameters = trackSelector.buildUponParameters()
@@ -273,14 +296,33 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       .setTrackSelector(trackSelector)
 
     // LLHLS passes livePlayback so Media3 can hold a stable live offset.
+    // Media3 docs: each rebuffer adds targetLiveOffsetIncrementOnRebufferMs (default 500).
+    // +1000 caused lag/buf to ratchet up during BUFFERING↔READY thrash until the playhead froze.
+    // 0 disables the ratchet (https://developer.android.com/media/media3/exoplayer/live-streaming).
     if (bufferConfig?.livePlayback != null) {
       playerBuilder.setLivePlaybackSpeedControl(
         DefaultLivePlaybackSpeedControl.Builder()
-          .setTargetLiveOffsetIncrementOnRebufferMs(1000L)
+          .setTargetLiveOffsetIncrementOnRebufferMs(0L)
           .build()
       )
     }
 
+    // Release the constructor placeholder (or any prior instance) before replacing.
+    // LLHLS remounts create a new HybridVideoPlayer; leaking the temp player accumulates codecs.
+    stopProgressUpdates()
+    try {
+      player.removeListener(playerListener)
+      player.removeAnalyticsListener(analyticsListener)
+    } catch (_: Exception) {
+    }
+    try {
+      player.release()
+    } catch (_: Exception) {
+    }
+    playerReleased = false
+    lastLiveProgressPosMs = C.TIME_UNSET
+    lastLiveProgressWallMs = 0L
+    lastLiveDefaultSeekAtMs = 0L
     player = playerBuilder.build()
 
     loadedWithSource = true
@@ -291,6 +333,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
     // Emit onLoadStart
     val sourceType = if (hybridSource.uri.startsWith("http")) SourceType.NETWORK else SourceType.LOCAL
+    hasEmittedOnLoad = false
     eventEmitter.onLoadStart(onLoadStartData(sourceType = sourceType, source = hybridSource))
     status = VideoPlayerStatus.LOADING
     startProgressUpdates()
@@ -382,6 +425,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         // Update source
         this.source = source
         lastNotifiedHlsSegmentUrl = null
+        hasEmittedOnLoad = false
         applyMaxVideoBitrateTrackConstraint()
         player.setMediaSource(hybridSource.mediaSource)
 
@@ -417,6 +461,8 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       stopProgressUpdates()
       loadedWithSource = false
       lastNotifiedHlsSegmentUrl = null
+      hasEmittedOnLoad = false
+      playerReleased = true
 
       eventEmitter.clearAllListeners()
 
@@ -445,7 +491,14 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         val gl = videoView.ensureGreenScreenGlAttached()
         gl.setSurfaceReadyCallback { surface ->
           runOnMainThread {
-            player.setVideoSurface(surface)
+            if (playerReleased || !loadedWithSource) {
+              return@runOnMainThread
+            }
+            try {
+              player.setVideoSurface(surface)
+            } catch (e: Exception) {
+              Log.w(TAG, "setVideoSurface skipped after player teardown", e)
+            }
           }
         }
       } else {
@@ -471,22 +524,34 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
   private fun startProgressUpdates() {
     stopProgressUpdates() // Ensure no multiple runnables
+    val generation = progressGeneration
     progressRunnable = object : Runnable {
       override fun run() {
-        if (player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
-          val currentTimeSeconds = player.currentPosition / 1000.0
-          val bufferedDurationSeconds = player.bufferedPosition / 1000.0
-          // bufferDuration is the time from current time that is buffered.
-          val playableDurationFromNow = max(0.0, bufferedDurationSeconds - currentTimeSeconds)
+        // Drop ticks scheduled before stop/release (removeCallbacks does not cancel an in-flight run).
+        if (generation != progressGeneration || playerReleased || !loadedWithSource) {
+          return
+        }
+        try {
+          if (player.playbackState != Player.STATE_IDLE && player.playbackState != Player.STATE_ENDED) {
+            val currentTimeSeconds = player.currentPosition / 1000.0
+            val bufferedDurationSeconds = player.bufferedPosition / 1000.0
+            // bufferDuration is the time from current time that is buffered.
+            val playableDurationFromNow = max(0.0, bufferedDurationSeconds - currentTimeSeconds)
 
-          eventEmitter.onProgress(
-            onProgressData(
-              currentTime = currentTimeSeconds,
-              bufferDuration = playableDurationFromNow
+            eventEmitter.onProgress(
+              onProgressData(
+                currentTime = currentTimeSeconds,
+                bufferDuration = playableDurationFromNow
+              )
             )
-          )
-          maybeNotifyHlsSegmentChange()
-          progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
+            maybeNotifyHlsSegmentChange()
+            maybeRecoverTipLiveHealthyBufFreeze()
+            if (generation == progressGeneration && !playerReleased) {
+              progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
+            }
+          }
+        } catch (e: Exception) {
+          Log.w(TAG, "progress tick skipped after player teardown", e)
         }
       }
     }
@@ -494,6 +559,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   }
 
   private fun stopProgressUpdates() {
+    progressGeneration += 1
     progressRunnable?.let { progressHandler.removeCallbacks(it) }
     progressRunnable = null
   }
@@ -511,6 +577,69 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     selector.parameters = selector.buildUponParameters()
       .setMaxVideoBitrate(resolveMaxVideoBitrateBps())
       .build()
+  }
+
+  /**
+   * Tip LLHLS only (`bufferConfig.livePlayback`): Media3 can flap BUFFERING↔READY with a healthy
+   * forward buffer while the playhead stays frozen. Soft JS seeks only mask this for ~2s.
+   * seekToDefaultPosition snaps back to the configured live target without a full remount.
+   *
+   * Important: tip window slides make currentPosition jump backward (~4s). That must NOT reset
+   * the freeze clock — otherwise a real stall looks fresh after every remap and recover is delayed
+   * to multi-second (seen as ~7s stuck on device).
+   */
+  private fun maybeRecoverTipLiveHealthyBufFreeze() {
+    if (bufferConfig?.livePlayback == null || playerReleased || !loadedWithSource) {
+      return
+    }
+    if (!player.playWhenReady) {
+      lastLiveProgressPosMs = C.TIME_UNSET
+      return
+    }
+    val posMs = player.currentPosition
+    val now = SystemClock.elapsedRealtime()
+    val bufAheadMs = max(0L, player.bufferedPosition - posMs)
+
+    if (lastLiveProgressPosMs == C.TIME_UNSET) {
+      lastLiveProgressPosMs = posMs
+      lastLiveProgressWallMs = now
+      return
+    }
+
+    // Only forward playhead movement clears the freeze clock (matches tip JS watchdog).
+    if (posMs > lastLiveProgressPosMs + 50L) {
+      lastLiveProgressPosMs = posMs
+      lastLiveProgressWallMs = now
+      return
+    }
+    // Backward tip-window remap: update pos baseline, keep freeze wall clock.
+    if (posMs < lastLiveProgressPosMs - 500L) {
+      lastLiveProgressPosMs = posMs
+    }
+
+    val frozenMs = now - lastLiveProgressWallMs
+    if (
+      frozenMs < LIVE_HEALTHY_BUF_FREEZE_MS ||
+      bufAheadMs < LIVE_HEALTHY_BUF_MIN_AHEAD_MS ||
+      now - lastLiveDefaultSeekAtMs < LIVE_DEFAULT_SEEK_COOLDOWN_MS
+    ) {
+      return
+    }
+    lastLiveDefaultSeekAtMs = now
+    lastLiveProgressWallMs = now
+    lastLiveProgressPosMs = posMs
+    Log.w(
+      TAG,
+      "LLHLS healthy-buf freeze — seekToDefaultPosition frozenMs=$frozenMs bufAheadMs=$bufAheadMs state=${player.playbackState}"
+    )
+    try {
+      player.seekToDefaultPosition()
+      if (player.playWhenReady && !player.isPlaying) {
+        player.play()
+      }
+    } catch (e: Exception) {
+      Log.e(TAG, "LLHLS healthy-buf freeze recovery failed", e)
+    }
   }
 
   /**
@@ -617,34 +746,40 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         Player.STATE_BUFFERING -> {
           status = VideoPlayerStatus.LOADING
           eventEmitter.onBuffer(true)
+          // Tip LLHLS: catch healthy-buf freeze as soon as BUFFERING starts, not only on progress ticks.
+          maybeRecoverTipLiveHealthyBufFreeze()
         }
         Player.STATE_READY -> {
           status = VideoPlayerStatus.READYTOPLAY
           eventEmitter.onBuffer(false)
 
-          val generalVideoFormat = player.videoFormat
-          val currentTracks = player.currentTracks
+          // Rebuffers also hit READY; only first READY after prepare/source should fire onLoad.
+          if (!hasEmittedOnLoad) {
+            hasEmittedOnLoad = true
+            val generalVideoFormat = player.videoFormat
+            val currentTracks = player.currentTracks
 
-          val selectedVideoTrackGroup = currentTracks.groups.find { group -> group.type == C.TRACK_TYPE_VIDEO && group.isSelected }
-          val selectedVideoTrackFormat = if (selectedVideoTrackGroup != null && selectedVideoTrackGroup.length > 0) {
-            selectedVideoTrackGroup.getTrackFormat(0)
-          } else {
-            null
-          }
+            val selectedVideoTrackGroup = currentTracks.groups.find { group -> group.type == C.TRACK_TYPE_VIDEO && group.isSelected }
+            val selectedVideoTrackFormat = if (selectedVideoTrackGroup != null && selectedVideoTrackGroup.length > 0) {
+              selectedVideoTrackGroup.getTrackFormat(0)
+            } else {
+              null
+            }
 
-          val width = selectedVideoTrackFormat?.width ?: generalVideoFormat?.width ?: 0
-          val height = selectedVideoTrackFormat?.height ?: generalVideoFormat?.height ?: 0
-          val rotationDegrees = selectedVideoTrackFormat?.rotationDegrees ?: generalVideoFormat?.rotationDegrees
+            val width = selectedVideoTrackFormat?.width ?: generalVideoFormat?.width ?: 0
+            val height = selectedVideoTrackFormat?.height ?: generalVideoFormat?.height ?: 0
+            val rotationDegrees = selectedVideoTrackFormat?.rotationDegrees ?: generalVideoFormat?.rotationDegrees
 
-          eventEmitter.onLoad(
-            onLoadData(
-              currentTime = player.currentPosition / 1000.0,
-              duration = if (player.duration == C.TIME_UNSET) Double.NaN else player.duration / 1000.0,
-              width = width.toDouble(),
-              height = height.toDouble(),
-              orientation = VideoOrientationUtils.fromWHR(width, height, rotationDegrees)
+            eventEmitter.onLoad(
+              onLoadData(
+                currentTime = player.currentPosition / 1000.0,
+                duration = if (player.duration == C.TIME_UNSET) Double.NaN else player.duration / 1000.0,
+                width = width.toDouble(),
+                height = height.toDouble(),
+                orientation = VideoOrientationUtils.fromWHR(width, height, rotationDegrees)
+              )
             )
-          )
+          }
           // If player becomes ready and is set to play, start progress updates
           if (player.playWhenReady) {
             startProgressUpdates()
@@ -688,6 +823,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
       ) {
         Log.w(TAG, "BehindLiveWindow — seekToDefaultPosition + prepare")
         try {
+          hasEmittedOnLoad = false
           player.seekToDefaultPosition()
           player.prepare()
           player.playWhenReady = true
