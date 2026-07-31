@@ -11,9 +11,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.text.CueGroup
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DecoderReuseEvaluation
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.DefaultLivePlaybackSpeedControl
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -21,8 +23,11 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.exoplayer.hls.HlsManifest
 import androidx.media3.exoplayer.hls.playlist.HlsMediaPlaylist
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.exoplayer.upstream.DefaultAllocator
+import androidx.media3.exoplayer.util.EventLogger
 import androidx.media3.extractor.metadata.emsg.EventMessage
 import androidx.media3.extractor.metadata.id3.Id3Frame
 import androidx.media3.extractor.metadata.id3.TextInformationFrame
@@ -104,11 +109,17 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   /** Emit onLoad only on first READY after prepare/source change — not on every rebuffer READY. */
   private var hasEmittedOnLoad = false
 
-  // Tip LLHLS only (livePlayback): detect frozen playhead with healthy forward buffer and unstick
-  // via seekToDefaultPosition. Soft JS GO LIVE alone left a ~2s hitch every ~20s.
-  private var lastLiveProgressPosMs = C.TIME_UNSET
-  private var lastLiveProgressWallMs = 0L
-  private var lastLiveDefaultSeekAtMs = 0L
+  /**
+   * Tip LLHLS only: once we pin a single video rung, do not re-evaluate ABR (Media3 #2299 —
+   * adaptive switches near the live tip can freeze with a healthy buffer).
+   */
+  private var tipVideoTrackPinned = false
+
+  /** Tip-only Media3 EventLogger — full Exo internals to logcat tag TIP-EXO. */
+  private var tipEventLogger: EventLogger? = null
+  private var lastTipLoadLogMs = 0L
+  private var lastTipTimelineLogMs = 0L
+
   // Tip-only diagnostics (A–J matrix): format / speed / live-offset / heartbeat
   private var lastTipDiagHeartbeatMs = 0L
   private var lastTipVideoHeight = -1
@@ -116,6 +127,13 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   private var lastTipPlaybackSpeed = Float.NaN
   private var lastTipStateLogMs = 0L
   private var lastTipLoggedState = -1
+
+  // Tip soft recover: frozen playhead + healthy buf + BUFFERING thrash → seekToDefaultPosition.
+  private var tipLastPosMs = -1L
+  private var tipPosFrozenSinceElapsedMs = 0L
+  private var tipLastSoftSeekElapsedMs = 0L
+  private var tipBufferingFlipCount = 0
+  private var tipBufferingFlipWindowElapsedMs = 0L
 
   private companion object {
     const val PROGRESS_UPDATE_INTERVAL_MS = 250L
@@ -126,12 +144,12 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     private const val DEFAULT_BUFFER_FOR_PLAYBACK_DURATION_MS = 1000
     private const val DEFAULT_BUFFER_FOR_PLAYBACK_AFTER_REBUFFER_DURATION_MS = 2000
     private const val DEFAULT_BACK_BUFFER_DURATION_MS = 0
-    /** Playhead unchanged this long with ≥1s buffered → tip live unstick. */
-    private const val LIVE_HEALTHY_BUF_FREEZE_MS = 500L
-    private const val LIVE_HEALTHY_BUF_MIN_AHEAD_MS = 1000L
-    /** Do not spam seekToDefaultPosition while thrash continues. */
-    private const val LIVE_DEFAULT_SEEK_COOLDOWN_MS = 5000L
     private const val TIP_DIAG_HEARTBEAT_MS = 5000L
+    private const val TIP_SOFT_SEEK_MIN_INTERVAL_MS = 12000L
+    private const val TIP_SOFT_SEEK_FROZEN_MS = 2000L
+    private const val TIP_SOFT_SEEK_MIN_BUF_AHEAD_MS = 1000L
+    private const val TIP_THRASH_FLIP_WINDOW_MS = 2000L
+    private const val TIP_THRASH_FLIP_MIN = 8
   }
 
   private fun isTipLivePlayback(): Boolean = bufferConfig?.livePlayback != null
@@ -161,7 +179,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     tipLog(label, tipDiagDetail())
   }
 
-  /** Snapshot for hypothesis D (catch-up past tip) + A/B (format) + speed. */
+  /** Snapshot for freeze RCA: pos/buf/liveOffset + live window geometry. */
   private fun tipDiagDetail(): String {
     if (playerReleased || !loadedWithSource) {
       return "released=1"
@@ -188,11 +206,73 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
           Player.STATE_ENDED -> "ENDED"
           else -> "UNK"
         }
+      var winDurMs = -1L
+      var defPosMs = -1L
+      var isLive = false
+      var isDynamic = false
+      var isSeekable = false
+      try {
+        val timeline = player.currentTimeline
+        if (!timeline.isEmpty) {
+          val window = Timeline.Window()
+          timeline.getWindow(player.currentMediaItemIndex, window)
+          winDurMs = if (window.durationMs == C.TIME_UNSET) -1L else window.durationMs
+          defPosMs = if (window.defaultPositionMs == C.TIME_UNSET) -1L else window.defaultPositionMs
+          isLive = window.isLive
+          isDynamic = window.isDynamic
+          isSeekable = window.isSeekable
+        }
+      } catch (_: Exception) {
+      }
       "posMs=$posMs bufAheadMs=$bufAheadMs liveOffsetMs=$liveOffsetMs speed=$speed " +
-        "h=$h br=$br state=$state playing=${player.isPlaying} pwr=${player.playWhenReady}"
+        "h=$h br=$br state=$state playing=${player.isPlaying} pwr=${player.playWhenReady} " +
+        "winDurMs=$winDurMs defPosMs=$defPosMs live=$isLive dyn=$isDynamic seekable=$isSeekable " +
+        "pinned=$tipVideoTrackPinned"
     } catch (e: Exception) {
       "err=${e.message}"
     }
+  }
+
+  private fun attachTipMedia3Logging() {
+    if (!isTipLivePlayback()) {
+      tipEventLogger = null
+      return
+    }
+    // Full Media3 EventLogger → logcat tag TIP-EXO (loads, timeline, renderer, errors).
+    val logger = EventLogger("TIP-EXO")
+    tipEventLogger = logger
+    player.addAnalyticsListener(logger)
+    tipLog("EXO-LOGGER-ON", tipDiagDetail())
+  }
+
+  private fun detachTipMedia3Logging() {
+    tipEventLogger?.let { logger ->
+      try {
+        player.removeAnalyticsListener(logger)
+      } catch (_: Exception) {
+      }
+    }
+    tipEventLogger = null
+  }
+
+  private fun tipDataTypeLabel(dataType: Int): String =
+    when (dataType) {
+      C.DATA_TYPE_MANIFEST -> "MANIFEST"
+      C.DATA_TYPE_MEDIA -> "MEDIA"
+      C.DATA_TYPE_MEDIA_INITIALIZATION -> "INIT"
+      C.DATA_TYPE_MEDIA_PROGRESSIVE_LIVE -> "PROG_LIVE"
+      C.DATA_TYPE_TIME_SYNCHRONIZATION -> "TIME_SYNC"
+      C.DATA_TYPE_UNKNOWN -> "UNKNOWN"
+      else -> "T$dataType"
+    }
+
+  private fun tipUriShort(uri: android.net.Uri?): String {
+    if (uri == null) {
+      return "-"
+    }
+    val s = uri.toString()
+    val slash = s.lastIndexOf('/')
+    return if (slash >= 0 && slash < s.length - 1) s.substring(slash + 1) else s.takeLast(48)
   }
 
   private fun maybeTipDiagHeartbeat() {
@@ -441,6 +521,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     try {
       player.removeListener(playerListener)
       player.removeAnalyticsListener(analyticsListener)
+      detachTipMedia3Logging()
     } catch (_: Exception) {
     }
     try {
@@ -448,15 +529,16 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     } catch (_: Exception) {
     }
     playerReleased = false
-    lastLiveProgressPosMs = C.TIME_UNSET
-    lastLiveProgressWallMs = 0L
-    lastLiveDefaultSeekAtMs = 0L
+    tipVideoTrackPinned = false
+    resetTipSoftSeekState()
+    tipLastSoftSeekElapsedMs = 0L
     player = playerBuilder.build()
 
     loadedWithSource = true
 
     player.addListener(playerListener)
     player.addAnalyticsListener(analyticsListener)
+    attachTipMedia3Logging()
     player.setMediaSource(hybridSource.mediaSource)
 
     // Emit onLoadStart
@@ -561,6 +643,9 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         this.source = source
         lastNotifiedHlsSegmentUrl = null
         hasEmittedOnLoad = false
+        tipVideoTrackPinned = false
+        resetTipSoftSeekState()
+        tipLastSoftSeekElapsedMs = 0L
         applyMaxVideoBitrateTrackConstraint()
         player.setMediaSource(hybridSource.mediaSource)
 
@@ -603,6 +688,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
       player.removeListener(playerListener)
       player.removeAnalyticsListener(analyticsListener)
+      detachTipMedia3Logging()
       player.release() // Release player
 
       // Clean Listeners
@@ -680,7 +766,6 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
               )
             )
             maybeNotifyHlsSegmentChange()
-            maybeRecoverTipLiveHealthyBufFreeze()
             maybeTipDiagHeartbeat()
             if (generation == progressGeneration && !playerReleased) {
               progressHandler.postDelayed(this, PROGRESS_UPDATE_INTERVAL_MS)
@@ -716,67 +801,156 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
   }
 
   /**
-   * Tip LLHLS only (`bufferConfig.livePlayback`): Media3 can flap BUFFERING↔READY with a healthy
-   * forward buffer while the playhead stays frozen. Soft JS seeks only mask this for ~2s.
-   * seekToDefaultPosition snaps back to the configured live target without a full remount.
-   *
-   * Important: tip window slides make currentPosition jump backward (~4s). That must NOT reset
-   * the freeze clock — otherwise a real stall looks fresh after every remap and recover is delayed
-   * to multi-second (seen as ~7s stuck on device).
+   * Tip LLHLS only (`livePlayback`): pin one video track under preferredPeakBitRate.
+   * Max bitrate alone still allows ABR under the cap; switches near tip freeze playhead
+   * (androidx/media#2299). Replay / regular live keep adaptive selection.
    */
-  private fun maybeRecoverTipLiveHealthyBufFreeze() {
-    if (bufferConfig?.livePlayback == null || playerReleased || !loadedWithSource) {
+  private fun maybePinTipVideoTrack(tracks: Tracks) {
+    if (!isTipLivePlayback() || tipVideoTrackPinned || playerReleased || !loadedWithSource) {
+      return
+    }
+    val selector = player.trackSelector as? DefaultTrackSelector ?: return
+    val maxBitrate = resolveMaxVideoBitrateBps()
+
+    var bestGroup: Tracks.Group? = null
+    var bestIndex = -1
+    var bestBitrate = -1
+    var bestHeight = -1
+
+    for (group in tracks.groups) {
+      if (group.type != C.TRACK_TYPE_VIDEO || group.length == 0) {
+        continue
+      }
+      for (i in 0 until group.length) {
+        if (!group.isTrackSupported(i)) {
+          continue
+        }
+        val format = group.getTrackFormat(i)
+        val bitrate = if (format.bitrate != Format.NO_VALUE) format.bitrate else 0
+        if (maxBitrate != Int.MAX_VALUE && bitrate > maxBitrate) {
+          continue
+        }
+        val height = if (format.height != Format.NO_VALUE) format.height else 0
+        val better =
+          height > bestHeight ||
+            (height == bestHeight && bitrate > bestBitrate)
+        if (better) {
+          bestGroup = group
+          bestIndex = i
+          bestBitrate = bitrate
+          bestHeight = height
+        }
+      }
+    }
+
+    if (bestGroup == null || bestIndex < 0) {
+      tipLog("ABR-PIN-SKIP", "noSuitableVideoTrack maxBr=$maxBitrate ${tipDiagDetail()}")
+      return
+    }
+
+    try {
+      selector.parameters = selector.buildUponParameters()
+        .setMaxVideoBitrate(maxBitrate)
+        .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+        .setOverrideForType(
+          TrackSelectionOverride(bestGroup.mediaTrackGroup, listOf(bestIndex))
+        )
+        .build()
+      tipVideoTrackPinned = true
+      tipLog(
+        "ABR-PIN",
+        "h=$bestHeight br=$bestBitrate idx=$bestIndex maxBr=$maxBitrate ${tipDiagDetail()}"
+      )
+    } catch (e: Exception) {
+      Log.e(TAG, "Tip ABR pin failed", e)
+      tipLog("ABR-PIN-FAIL", e.message ?: "err")
+    }
+  }
+
+  private fun resetTipSoftSeekState() {
+    tipLastPosMs = -1L
+    tipPosFrozenSinceElapsedMs = 0L
+    tipBufferingFlipCount = 0
+    tipBufferingFlipWindowElapsedMs = 0L
+  }
+
+  /**
+   * Tip LLHLS only: Media3 audio-renderer ready flap freezes playhead with healthy buffer.
+   * Soft seekToDefaultPosition (same as JS goLive) clears it without remount/black frame.
+   */
+  private fun maybeRecoverTipAudioFreeze(playbackState: Int) {
+    if (!isTipLivePlayback() || playerReleased || !loadedWithSource) {
       return
     }
     if (!player.playWhenReady) {
-      lastLiveProgressPosMs = C.TIME_UNSET
       return
     }
-    val posMs = player.currentPosition
     val now = SystemClock.elapsedRealtime()
-    val bufAheadMs = max(0L, player.bufferedPosition - posMs)
-
-    if (lastLiveProgressPosMs == C.TIME_UNSET) {
-      lastLiveProgressPosMs = posMs
-      lastLiveProgressWallMs = now
+    val posMs: Long
+    val bufAheadMs: Long
+    try {
+      posMs = player.currentPosition
+      bufAheadMs = max(0L, player.bufferedPosition - posMs)
+    } catch (_: Exception) {
       return
     }
 
-    // Only forward playhead movement clears the freeze clock (matches tip JS watchdog).
-    if (posMs > lastLiveProgressPosMs + 50L) {
-      lastLiveProgressPosMs = posMs
-      lastLiveProgressWallMs = now
+    if (tipLastPosMs >= 0L && Math.abs(posMs - tipLastPosMs) < 50L) {
+      if (tipPosFrozenSinceElapsedMs == 0L) {
+        tipPosFrozenSinceElapsedMs = now
+      }
+    } else {
+      tipLastPosMs = posMs
+      tipPosFrozenSinceElapsedMs = 0L
+      tipBufferingFlipCount = 0
+      tipBufferingFlipWindowElapsedMs = 0L
       return
     }
-    // Backward tip-window remap: update pos baseline, keep freeze wall clock.
-    if (posMs < lastLiveProgressPosMs - 500L) {
-      lastLiveProgressPosMs = posMs
+    tipLastPosMs = posMs
+
+    if (playbackState == Player.STATE_BUFFERING) {
+      if (now - tipBufferingFlipWindowElapsedMs > TIP_THRASH_FLIP_WINDOW_MS) {
+        tipBufferingFlipWindowElapsedMs = now
+        tipBufferingFlipCount = 1
+      } else {
+        tipBufferingFlipCount += 1
+      }
     }
 
-    val frozenMs = now - lastLiveProgressWallMs
+    val frozenMs =
+      if (tipPosFrozenSinceElapsedMs > 0L) now - tipPosFrozenSinceElapsedMs else 0L
+    if (frozenMs < TIP_SOFT_SEEK_FROZEN_MS) {
+      return
+    }
+    if (bufAheadMs < TIP_SOFT_SEEK_MIN_BUF_AHEAD_MS) {
+      return
+    }
+    if (tipBufferingFlipCount < TIP_THRASH_FLIP_MIN) {
+      return
+    }
     if (
-      frozenMs < LIVE_HEALTHY_BUF_FREEZE_MS ||
-      bufAheadMs < LIVE_HEALTHY_BUF_MIN_AHEAD_MS ||
-      now - lastLiveDefaultSeekAtMs < LIVE_DEFAULT_SEEK_COOLDOWN_MS
+      tipLastSoftSeekElapsedMs > 0L &&
+      now - tipLastSoftSeekElapsedMs < TIP_SOFT_SEEK_MIN_INTERVAL_MS
     ) {
       return
     }
-    lastLiveDefaultSeekAtMs = now
-    lastLiveProgressWallMs = now
-    lastLiveProgressPosMs = posMs
+
+    tipLastSoftSeekElapsedMs = now
+    val flips = tipBufferingFlipCount
+    tipPosFrozenSinceElapsedMs = 0L
+    tipBufferingFlipCount = 0
+    tipBufferingFlipWindowElapsedMs = 0L
     tipLog(
-      "HEALTHY-BUF-RECOVER",
-      "frozenMs=$frozenMs bufAheadMs=$bufAheadMs ${tipDiagDetail()}"
+      "SOFT-SEEK-LIVE",
+      "frozenMs=$frozenMs flips=$flips ${tipDiagDetail()}"
     )
     try {
       player.seekToDefaultPosition()
-      if (player.playWhenReady && !player.isPlaying) {
-        player.play()
-      }
-      tipLog("HEALTHY-BUF-SEEK-DONE", tipDiagDetail())
+      player.playWhenReady = true
+      tipLog("SOFT-SEEK-LIVE-DONE", tipDiagDetail())
     } catch (e: Exception) {
-      Log.e(TAG, "LLHLS healthy-buf freeze recovery failed", e)
-      tipLog("HEALTHY-BUF-RECOVER-FAIL", e.message ?: "err")
+      Log.e(TAG, "Tip soft seek live failed", e)
+      tipLog("SOFT-SEEK-LIVE-FAIL", e.message ?: "err")
     }
   }
 
@@ -871,17 +1045,24 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
     override fun onDownstreamFormatChanged(
       eventTime: AnalyticsListener.EventTime,
-      mediaLoadData: AnalyticsListener.MediaLoadData
+      mediaLoadData: MediaLoadData
     ) {
       if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO) {
         onTipVideoFormatMaybeChanged(mediaLoadData.trackFormat)
+      }
+      if (isTipLivePlayback()) {
+        tipLog(
+          "DOWNSTREAM-FMT",
+          "trackType=${mediaLoadData.trackType} h=${mediaLoadData.trackFormat?.height ?: -1} " +
+            "br=${mediaLoadData.trackFormat?.bitrate ?: -1} ${tipDiagDetail()}"
+        )
       }
     }
 
     override fun onVideoInputFormatChanged(
       eventTime: AnalyticsListener.EventTime,
       format: Format,
-      decoderReuseEvaluation: androidx.media3.exoplayer.DecoderReuseEvaluation?
+      decoderReuseEvaluation: DecoderReuseEvaluation?
     ) {
       onTipVideoFormatMaybeChanged(format)
       if (isTipLivePlayback()) {
@@ -891,11 +1072,144 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         )
       }
     }
+
+    override fun onLoadStarted(
+      eventTime: AnalyticsListener.EventTime,
+      loadEventInfo: LoadEventInfo,
+      mediaLoadData: MediaLoadData
+    ) {
+      if (!isTipLivePlayback()) {
+        return
+      }
+      val now = SystemClock.elapsedRealtime()
+      val isManifest = mediaLoadData.dataType == C.DATA_TYPE_MANIFEST
+      // Manifest always; media loads throttled (LL-HLS parts are very chatty).
+      if (!isManifest && now - lastTipLoadLogMs < 1000L) {
+        return
+      }
+      lastTipLoadLogMs = now
+      tipLog(
+        "LOAD-START",
+        "type=${tipDataTypeLabel(mediaLoadData.dataType)} uri=${tipUriShort(loadEventInfo.uri)} ${tipDiagDetail()}"
+      )
+    }
+
+    override fun onLoadCompleted(
+      eventTime: AnalyticsListener.EventTime,
+      loadEventInfo: LoadEventInfo,
+      mediaLoadData: MediaLoadData
+    ) {
+      if (!isTipLivePlayback()) {
+        return
+      }
+      if (mediaLoadData.dataType == C.DATA_TYPE_MANIFEST) {
+        tipLog(
+          "LOAD-OK",
+          "type=MANIFEST uri=${tipUriShort(loadEventInfo.uri)} " +
+            "ms=${loadEventInfo.loadDurationMs} bytes=${loadEventInfo.bytesLoaded} ${tipDiagDetail()}"
+        )
+      }
+    }
+
+    override fun onLoadError(
+      eventTime: AnalyticsListener.EventTime,
+      loadEventInfo: LoadEventInfo,
+      mediaLoadData: MediaLoadData,
+      error: java.io.IOException,
+      wasCanceled: Boolean
+    ) {
+      if (!isTipLivePlayback()) {
+        return
+      }
+      tipLog(
+        "LOAD-ERROR",
+        "type=${tipDataTypeLabel(mediaLoadData.dataType)} uri=${tipUriShort(loadEventInfo.uri)} " +
+          "canceled=$wasCanceled err=${error.javaClass.simpleName}:${error.message} ${tipDiagDetail()}"
+      )
+    }
+
+    override fun onAudioUnderrun(
+      eventTime: AnalyticsListener.EventTime,
+      bufferSize: Int,
+      bufferSizeMs: Long,
+      elapsedSinceLastFeedMs: Long
+    ) {
+      if (isTipLivePlayback()) {
+        tipLog(
+          "AUDIO-UNDERRUN",
+          "bufSize=$bufferSize bufSizeMs=$bufferSizeMs sinceFeedMs=$elapsedSinceLastFeedMs ${tipDiagDetail()}"
+        )
+      }
+    }
+
+    override fun onDroppedVideoFrames(
+      eventTime: AnalyticsListener.EventTime,
+      droppedFrames: Int,
+      elapsedMs: Long
+    ) {
+      if (isTipLivePlayback() && droppedFrames > 0) {
+        tipLog("DROPPED-FRAMES", "n=$droppedFrames elapsedMs=$elapsedMs ${tipDiagDetail()}")
+      }
+    }
+
+    override fun onAudioSinkError(
+      eventTime: AnalyticsListener.EventTime,
+      audioSinkError: Exception
+    ) {
+      if (isTipLivePlayback()) {
+        tipLog(
+          "AUDIO-SINK-ERR",
+          "${audioSinkError.javaClass.simpleName}:${audioSinkError.message} ${tipDiagDetail()}"
+        )
+      }
+    }
+
+    override fun onVideoCodecError(
+      eventTime: AnalyticsListener.EventTime,
+      videoCodecError: Exception
+    ) {
+      if (isTipLivePlayback()) {
+        tipLog(
+          "VIDEO-CODEC-ERR",
+          "${videoCodecError.javaClass.simpleName}:${videoCodecError.message} ${tipDiagDetail()}"
+        )
+      }
+    }
+
+    override fun onAudioCodecError(
+      eventTime: AnalyticsListener.EventTime,
+      audioCodecError: Exception
+    ) {
+      if (isTipLivePlayback()) {
+        tipLog(
+          "AUDIO-CODEC-ERR",
+          "${audioCodecError.javaClass.simpleName}:${audioCodecError.message} ${tipDiagDetail()}"
+        )
+      }
+    }
+
+    override fun onRenderedFirstFrame(
+      eventTime: AnalyticsListener.EventTime,
+      output: Any,
+      renderTimeMs: Long
+    ) {
+      if (isTipLivePlayback()) {
+        tipLog("FIRST-FRAME", "renderMs=$renderTimeMs ${tipDiagDetail()}")
+      }
+    }
   }
 
   private val playerListener = object : Player.Listener {
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
       maybeNotifyHlsSegmentChange()
+      if (isTipLivePlayback()) {
+        val now = SystemClock.elapsedRealtime()
+        // Tip window slides often — keep reason edges, rate-limit spam.
+        if (now - lastTipTimelineLogMs >= 2000L || reason != Player.TIMELINE_CHANGE_REASON_SOURCE_UPDATE) {
+          lastTipTimelineLogMs = now
+          tipLog("TIMELINE", "reason=$reason ${tipDiagDetail()}")
+        }
+      }
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -918,13 +1232,13 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
           status = VideoPlayerStatus.LOADING
           eventEmitter.onBuffer(true)
           tipLogState(Player.STATE_BUFFERING, "STATE-BUFFERING")
-          // Tip LLHLS: catch healthy-buf freeze as soon as BUFFERING starts, not only on progress ticks.
-          maybeRecoverTipLiveHealthyBufFreeze()
+          maybeRecoverTipAudioFreeze(Player.STATE_BUFFERING)
         }
         Player.STATE_READY -> {
           status = VideoPlayerStatus.READYTOPLAY
           eventEmitter.onBuffer(false)
           tipLogState(Player.STATE_READY, "STATE-READY")
+          maybeRecoverTipAudioFreeze(Player.STATE_READY)
           onTipVideoFormatMaybeChanged(player.videoFormat)
 
           // Rebuffers also hit READY; only first READY after prepare/source should fire onLoad.
@@ -1024,11 +1338,12 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     override fun onTracksChanged(tracks: Tracks) {
       super.onTracksChanged(tracks)
       if (isTipLivePlayback()) {
+        maybePinTipVideoTrack(tracks)
         val videoGroup = tracks.groups.find { it.type == C.TRACK_TYPE_VIDEO && it.isSelected }
         val fmt = if (videoGroup != null && videoGroup.length > 0) videoGroup.getTrackFormat(0) else null
         tipLog(
           "TRACKS",
-          "h=${fmt?.height ?: -1} br=${fmt?.bitrate ?: -1} groups=${tracks.groups.size} ${tipDiagDetail()}"
+          "h=${fmt?.height ?: -1} br=${fmt?.bitrate ?: -1} groups=${tracks.groups.size} pinned=$tipVideoTrackPinned ${tipDiagDetail()}"
         )
         onTipVideoFormatMaybeChanged(fmt)
       }
