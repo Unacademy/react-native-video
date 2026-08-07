@@ -44,6 +44,10 @@ public class GLTextureView
         implements TextureView.SurfaceTextureListener,
         View.OnLayoutChangeListener {
     private SurfaceReadyCallback surfaceReadyCallback;
+    /*  The renderer hands the decode Surface over exactly once, from the GL thread, as soon as
+        the EGL context is created. A consumer that registers later (or that had to decline the
+        first delivery) would otherwise never see it, so hold on to it and replay on demand. */
+    private volatile Surface preparedSurface;
     private final static String TAG = "GLTextureView";
     private final static boolean LOG_ATTACH_DETACH = true;
     private final static boolean LOG_THREADS = true;
@@ -105,6 +109,7 @@ public class GLTextureView
             @Override
             public void surfacePrepared(Surface surface) {
                 alphaTexture = renderer.surface;
+                preparedSurface = surface;
                 if (surfaceReadyCallback != null) {
                     surfaceReadyCallback.onSurfaceReady(surface);
                 }
@@ -558,6 +563,8 @@ public class GLTextureView
 
     public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
         onPause();
+        // The EGL context goes with it; a fresh Surface arrives from prepareSurface() on resume.
+        preparedSurface = null;
         if(newSurfaceTextureListener != null) {
             newSurfaceTextureListener.onSurfaceTextureDestroyed(surface);
         }
@@ -575,6 +582,10 @@ public class GLTextureView
 
     public void setSurfaceReadyCallback(SurfaceReadyCallback onSurfaceCreatedCallBack) {
         this.surfaceReadyCallback = onSurfaceCreatedCallBack;
+        Surface surface = preparedSurface;
+        if (onSurfaceCreatedCallBack != null && surface != null) {
+            onSurfaceCreatedCallBack.onSurfaceReady(surface);
+        }
     }
 
     // ----------------------------------------------------------------------

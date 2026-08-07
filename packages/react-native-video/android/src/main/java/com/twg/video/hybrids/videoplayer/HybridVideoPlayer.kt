@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
+import android.view.Surface
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.Metadata
@@ -79,6 +80,11 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
   var loadedWithSource = false
   private var currentPlayerView: WeakReference<PlayerView>? = null
+
+  /*  Green screen renders into a GL-owned Surface instead of the PlayerView. `player` starts out
+      as a throwaway instance and is swapped for the real one in initializePlayer(), so a Surface
+      that arrives before that swap (or that outlives it) has to be kept and re-applied. */
+  private var greenScreenSurface: Surface? = null
 
   var wasAutoPaused = false
 
@@ -539,6 +545,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     player.addListener(playerListener)
     player.addAnalyticsListener(analyticsListener)
     attachTipMedia3Logging()
+    attachGreenScreenSurface()
     player.setMediaSource(hybridSource.mediaSource)
 
     // Emit onLoadStart
@@ -700,6 +707,19 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     }
   }
 
+  /** Re-runs whenever either half of the handshake becomes available; the last one in wins. */
+  private fun attachGreenScreenSurface() {
+    val surface = greenScreenSurface ?: return
+    if (playerReleased || !loadedWithSource) {
+      return
+    }
+    try {
+      player.setVideoSurface(surface)
+    } catch (e: Exception) {
+      Log.w(TAG, "setVideoSurface skipped after player teardown", e)
+    }
+  }
+
   fun movePlayerToVideoView(videoView: VideoView) {
     VideoManager.addViewToPlayer(videoView, this)
 
@@ -712,17 +732,12 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
         val gl = videoView.ensureGreenScreenGlAttached()
         gl.setSurfaceReadyCallback { surface ->
           runOnMainThread {
-            if (playerReleased || !loadedWithSource) {
-              return@runOnMainThread
-            }
-            try {
-              player.setVideoSurface(surface)
-            } catch (e: Exception) {
-              Log.w(TAG, "setVideoSurface skipped after player teardown", e)
-            }
+            greenScreenSurface = surface
+            attachGreenScreenSurface()
           }
         }
       } else {
+        greenScreenSurface = null
         videoView.greenScreenGlView?.setSurfaceReadyCallback(null)
         player.clearVideoSurface()
         PlayerView.switchTargetView(player, currentPlayerView?.get(), videoView.playerView)
