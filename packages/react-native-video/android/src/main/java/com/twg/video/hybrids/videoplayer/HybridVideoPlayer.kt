@@ -545,7 +545,7 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
     player.addListener(playerListener)
     player.addAnalyticsListener(analyticsListener)
     attachTipMedia3Logging()
-    attachGreenScreenSurface()
+    reattachVideoOutput()
     player.setMediaSource(hybridSource.mediaSource)
 
     // Emit onLoadStart
@@ -704,6 +704,18 @@ class HybridVideoPlayer() : HybridVideoPlayerSpec(), AutoCloseable {
 
       // Update status
       status = VideoPlayerStatus.IDLE
+    }
+  }
+
+  /*  A view can be attached before the source is loaded, and initializePlayer() then swaps `player`
+      for a new ExoPlayer that renders nowhere — audio keeps playing while the video stays blank.
+      Re-point whichever output the view already asked for at the instance that is now current. */
+  private fun reattachVideoOutput() {
+    attachGreenScreenSurface()
+
+    val playerView = currentPlayerView?.get() ?: return
+    if (playerView.player !== player) {
+      playerView.player = player
     }
   }
 
